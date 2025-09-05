@@ -6,5 +6,5 @@ Learning Management System (Agora Engine, Django, Flutter)
 This project is **Proprietary Software**.  
 You may **not** copy, modify, distribute, or use this code without an official purchase and written permission from **Hobo Custom Software**.
 
-📩 For licensing inquiries: htetsharkyaw92@gmail.com
+📩 For licensing inquiries: hobocustomsoftware@gmail.com
 
