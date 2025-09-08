@@ -13,6 +13,8 @@ from .views_crud import (
     CourseViewSet, ModuleViewSet, LessonViewSet, LessonAssetViewSet
 )
 
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenVerifyView
+
 router = DefaultRouter()
 router.register(r"sessions", LiveSessionViewSet, basename="session")
 router.register(r"seats",    SeatReservationViewSet, basename="seat")
@@ -25,5 +27,7 @@ router.register(r"lessons", LessonViewSet, basename="lesson")
 router.register(r"assets",  LessonAssetViewSet, basename="asset")
 
 urlpatterns = [
-    # APIView routes (if any) here…
+    path("", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    path("refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path("verify/", TokenVerifyView.as_view(), name="token_verify"),
 ] + router.urls
