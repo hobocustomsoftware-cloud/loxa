@@ -33,7 +33,9 @@ INSTALLED_APPS = [
     "orgs",
 
     "social_django",
+    "corsheaders",
 
+    "drf_yasg", 
 ]
 
 MIDDLEWARE = [
@@ -45,6 +47,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
 ]
 
 MIDDLEWARE.insert(1, "orgs.middleware.current_org_middleware")
@@ -127,16 +130,23 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = "/static/"
-STATIC_ROOT = "/data/static"
+STATIC_ROOT = "/data/static"          # <- docker volume mount နဲ့တူရမယ်
+STATICFILES_DIRS = [
+    BASE_DIR / "static",              # project-level assets (optional)
+    BASE_DIR / "loxa" / "static",     # app-level assets (if you have)
+    BASE_DIR / "api" / "static",      # app-level assets (if you have)
+]
 
 
 # Media (our own storage)
-MEDIA_URL  = "/media/"
-MEDIA_ROOT = os.getenv("MEDIA_ROOT", "/data/media")   # mounted volume
-
+MEDIA_URL = "/media/"
+MEDIA_ROOT = "/data/media"
 
 # Small helper used by views to build safe paths
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STORAGES = {
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+}
 
 
 def build_media_path(*parts):
@@ -233,3 +243,16 @@ SOCIAL_AUTH_PIPELINE = (
     "social_core.pipeline.social_auth.load_extra_data",
     "social_core.pipeline.user.user_details",
 )
+
+
+SWAGGER_SETTINGS = {
+    "USE_SESSION_AUTH": False,  # we'll use Bearer JWT
+    "SECURITY_DEFINITIONS": {
+        "Bearer": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header",
+            "description": 'Paste **Bearer &lt;your_JWT&gt;** here. Example: `Bearer eyJ0eXAiOiJK...`',
+        },
+    },
+}

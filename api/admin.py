@@ -11,14 +11,6 @@ from .models_academics import  Level, Course, Module, Lesson, LessonAsset
 
 
 
-
-
-
-
-
-
-
-
 class CourseAdminForm(forms.ModelForm):
     class Meta:
         model = Course

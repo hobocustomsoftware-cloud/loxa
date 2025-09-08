@@ -27,7 +27,7 @@ router.register(r"lessons", LessonViewSet, basename="lesson")
 router.register(r"assets",  LessonAssetViewSet, basename="asset")
 
 urlpatterns = [
-    path("", TokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-    path("verify/", TokenVerifyView.as_view(), name="token_verify"),
+    # path("", TokenObtainPairView.as_view(), name="token_obtain_pair"),
+    # path("refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    # path("verify/", TokenVerifyView.as_view(), name="token_verify"),
 ] + router.urls

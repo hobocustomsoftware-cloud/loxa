@@ -11,6 +11,9 @@ from rest_framework.response import Response
 from .models import LiveSession, SeatReservation, Attendance
 from .serializers import LiveSessionSer, JoinResponseSer, LeaveResponseSer
 
+from drf_yasg.utils import swagger_auto_schema
+
+
 AGORA_APP_ID = os.getenv("AGORA_APP_ID", "")
 AGORA_APP_CERT = os.getenv("AGORA_APP_CERT", "")
 
@@ -138,3 +141,8 @@ class LiveSessionViewSet(OrgScopedMixin, viewsets.ModelViewSet):
             "upload_endpoint": f"/api/assets/{asset.id}/upload/", # type: ignore
             "play_endpoint": f"/api/assets/{asset.id}/play/" # type: ignore
         })
+
+
+
+
+
