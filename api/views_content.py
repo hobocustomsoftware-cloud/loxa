@@ -27,7 +27,7 @@ class AssetInit(APIView):
         # client will PUT file to /api/assets/<id>/upload/?name=source
         asset.storage_key = f"{rel_base}/source"
         asset.save(update_fields=["storage_key"])
-        return Response({"asset_id": asset.id, "upload_field": "source", "rel_base": rel_base})
+        return Response({"asset_id": asset.id, "upload_field": "source", "rel_base": rel_base}) # type: ignore
 
 class AssetUpload(APIView):
     """Simple multipart upload into MEDIA_ROOT (no S3)."""
@@ -46,7 +46,7 @@ class AssetUpload(APIView):
         asset.size_bytes = f.size
         asset.ready = True  # if you want HLS pipeline later, set False here and flip after processing
         asset.save(update_fields=["size_bytes","ready"])
-        return Response({"ok": True, "asset_id": asset.id})
+        return Response({"ok": True, "asset_id": asset.id}) # type: ignore
 
 class AssetPlay(APIView):
     """Return signed URL; prefer HLS if exists."""
