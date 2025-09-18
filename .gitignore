@@ -1,0 +1,16 @@
+loxa/.env
+loxa/loxa/.env
+*.pyc
+__pycache__/
+venv/
+.venv/
+db.sqlite3
+frontend/chrome-device/
+loxa/.env
+loxa/loxa/.env
+*.pyc
+__pycache__/
+venv/
+.venv/
+db.sqlite3
+frontend/chrome-device/
