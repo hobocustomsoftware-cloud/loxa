@@ -70,9 +70,9 @@ class LiveSessionSerializer(serializers.ModelSerializer):
         model = LiveSession
         fields = [
             "id", "org", "title", "channel_name", "owner", "owner_username",
-            "start_time", "duration_minutes", "max_participants", "recording_enabled",
+            "start_time", "duration_minutes", "max_participants", "recording_enabled", "created_at"
         ]
-        read_only_fields = ["id", "owner"]
+        read_only_fields = ["id", "owner", "channel_name"]
 
 class SeatReservationSer(serializers.ModelSerializer):
     class Meta:

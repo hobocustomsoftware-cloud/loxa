@@ -1,111 +1,42 @@
-// import 'package:dio/dio.dart';
-// import '../../../core/api/dio_client.dart';
+// lib/features/courses/data/course_tree_repository.dart
+import 'package:dio/dio.dart';
+import '../../../core/api/dio_client.dart';
+import '../models/course_tree_models.dart';
+// 이미 정의돼있으면 그걸 재사용
+import 'course_repository.dart' show AuthRequiredException, ApiException;
 
-// class CourseTreeRepository {
-//   final Dio _dio = DioClient.instance.dio;
+class CourseTreeRepository {
+  final Dio _dio = DioClient.instance.dio;
 
-//   /// One-shot: Course -> Modules -> Lessons -> Assets (compose from flat endpoints)
-//   Future<Course> fetchTree(int id) async {
-//     // 1) Base course detail
-//     final baseResp = await _dio.get(
-//       '/courses/$id/',
-//       queryParameters: {'format': 'json'},
-//     );
-//     final base = Course.fromJson(Map<String, dynamic>.from(baseResp.data));
+  /// /api/courses/{id}/tree/ ကို တန်းခေါ်ပြီး CourseTree ပြန်ပေးမယ်
+  Future<CourseTree> fetchTree(int id) async {
+    final res = await _dio.get('/courses/$id/tree/');
+    if (res.statusCode == 200) {
+      return CourseTree.fromJson(res.data as Map<String, dynamic>);
+    }
 
-//     // 2) Modules for the course
-//     final modules = await _fetchModules(id);
+    if (res.statusCode == 401 || res.statusCode == 403) {
+      final detail = (res.data is Map && (res.data as Map)['detail'] != null)
+          ? (res.data as Map)['detail']
+          : 'Authentication required';
+      throw AuthRequiredException(detail.toString());
+    }
 
-//     // 3) Fill lessons & assets
-//     final filledModules = <Module>[];
-//     for (final m in modules) {
-//       final lessons = await _fetchLessons(m.id);
+    throw ApiException('Failed to load course tree (${res.statusCode})');
+  }
+}
 
-//       final filledLessons = <Lesson>[];
-//       for (final l in lessons) {
-//         final assets = await _fetchAssets(l.id);
-//         // Asset model uses `kind` (not `type`) in UI later; here we just pass through
-//         filledLessons.add(Lesson(id: l.id, title: l.title, assets: assets));
-//       }
+// (အကူအညီ) သင့် project မှာ မရှိသေးရင် ဒီကို ထည့်နိုင်
+class AuthRequiredException implements Exception {
+  final String message;
+  AuthRequiredException(this.message);
+  @override
+  String toString() => message;
+}
 
-//       filledModules.add(
-//         Module(id: m.id, title: m.title, lessons: filledLessons),
-//       );
-//     }
-
-//     // 4) Return a new Course including composed modules
-//     return Course(
-//       id: base.id,
-//       title: base.title,
-//       description: base.description,
-//       code: base.code,
-//       paperNo: base.paperNo,
-//       org: base.org,
-//       orgName: base.orgName,
-//       level: base.level,
-//       owner: base.owner,
-//       levelLabel: base.levelLabel,
-//       programLabel: base.programLabel,
-//       modules: filledModules,
-//     );
-//   }
-
-//   // --- helpers --------------------------------------------------------------
-
-//   Future<List<Module>> _fetchModules(int courseId) async {
-//     final resp = await _dio.get(
-//       '/modules/',
-//       queryParameters: {
-//         'course': courseId,
-//         'format': 'json',
-//         'page_size': 1000, // if pagination supported
-//       },
-//     );
-
-//     final data = resp.data;
-//     final list = (data is Map && data['results'] is List)
-//         ? data['results'] as List
-//         : (data as List);
-//     return list
-//         .map((e) => Module.fromJson(Map<String, dynamic>.from(e)))
-//         .toList();
-//   }
-
-//   Future<List<Lesson>> _fetchLessons(int moduleId) async {
-//     final resp = await _dio.get(
-//       '/lessons/',
-//       queryParameters: {
-//         'module': moduleId,
-//         'format': 'json',
-//         'page_size': 1000,
-//       },
-//     );
-
-//     final data = resp.data;
-//     final list = (data is Map && data['results'] is List)
-//         ? data['results'] as List
-//         : (data as List);
-//     return list
-//         .map((e) => Lesson.fromJson(Map<String, dynamic>.from(e)))
-//         .toList();
-//   }
-
-//   Future<List<Asset>> _fetchAssets(int lessonId) async {
-//     final resp = await _dio.get(
-//       '/assets/',
-//       queryParameters: {
-//         'lesson': lessonId,
-//         'format': 'json',
-//         'page_size': 1000,
-//       },
-//     );
-
-//     final data = resp.data;
-//     final list = (data is Map && data['results'] is List)
-//         ? data['results'] as List
-//         : (data as List);
-//     return list
-//         .map((e) => Asset.fromJson(Map<String, dynamic>.from(e)))
-//         .toList();
-//   }
-// }
+class ApiException implements Exception {
+  final String message;
+  ApiException(this.message);
+  @override
+  String toString() => message;
+}

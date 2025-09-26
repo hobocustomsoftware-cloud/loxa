@@ -1,113 +1,61 @@
 // features/courses/ui/course_detail_page.dart
 import 'package:flutter/material.dart';
-import '../../courses/data/course_repository.dart';
+import 'package:frond_end/features/courses/data/course_tree_repository.dart';
+import 'package:frond_end/features/courses/models/course_tree_models.dart';
+import 'package:go_router/go_router.dart';
 import '../../players/pdf_viewer_page.dart';
 import '../../players/video_player_page.dart';
-import '../models/course_meta_model.dart';
-import '../models/course_tree_models.dart';
 
-class CourseDetailPage extends StatefulWidget {
+class CourseDetailsPage extends StatefulWidget {
   final int id;
-  const CourseDetailPage({super.key, required this.id, required int courseId});
+  const CourseDetailsPage({super.key, required this.id});
 
   @override
-  State<CourseDetailPage> createState() => _CourseDetailPageState();
+  State<CourseDetailsPage> createState() => _CourseDetailsPageState();
 }
 
-class _CourseDetailPageState extends State<CourseDetailPage> {
-  final _repo = CourseRepository();
-  CourseMeta? _meta;
-  CourseTree? _tree;
-  String? _err;
-  bool _authNeeded = false;
-  bool _loading = true;
+class _CourseDetailsPageState extends State<CourseDetailsPage> {
+  late Future<CourseTree> _treeFuture;
+  final _treeRepo = CourseTreeRepository();
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _err = null;
-      _authNeeded = false;
-    });
-    try {
-      final meta = await _repo.fetchMeta(widget.id);
-      final tree = await _repo.fetchTree(widget.id);
-      setState(() {
-        _meta = meta as CourseMeta?;
-        _tree = tree as CourseTree?;
-        _loading = false;
-      });
-    } on AuthRequiredException catch (e) {
-      setState(() {
-        _authNeeded = true;
-        _err = e.toString();
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _err = '$e';
-        _loading = false;
-      });
-    }
+    _treeFuture = _treeRepo.fetchTree(widget.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-    if (_authNeeded) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Sign in required')),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(_err ?? 'Authentication required'),
-              const SizedBox(height: 12),
-              FilledButton(
-                onPressed: () {
-                  // TODO: navigate to your sign-in flow
-                },
-                child: const Text('Sign in'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (_err != null) {
-      return Scaffold(
-        appBar: AppBar(),
-        body: Center(
-          child: Text(_err!, style: const TextStyle(color: Colors.red)),
-        ),
-      );
-    }
-
-    final meta = _meta!;
-    final tree = _tree!;
-
     return Scaffold(
-      appBar: AppBar(title: Text(meta.title)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (meta.description.isNotEmpty) Text(meta.description),
-          const SizedBox(height: 8),
-          if ((meta.programLabel ?? '').isNotEmpty)
-            Text(
-              meta.programLabel!,
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          const SizedBox(height: 16),
-          ...tree.modules.map((m) => _ModuleTile(m)).toList(),
-        ],
+      appBar: AppBar(title: const Text("Course Details")),
+      body: FutureBuilder(
+        future: _treeFuture,
+        builder: (ctx, snap) {
+          if (snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            if (snap.error is AuthRequiredException) {
+              return Center(
+                child: FilledButton(
+                  onPressed: () => context.go('/signin'),
+                  child: const Text("Sign in required"),
+                ),
+              );
+            }
+            return Text('Error: ${snap.error}');
+          }
+          final tree = snap.data as CourseTree;
+          return ListView(
+            children: [
+              Text(
+                tree.title,
+                style: Theme.of(context).textTheme.headlineMedium,
+              ),
+              // modules / lessons / assets ထပ် loop ပြပါ
+            ],
+          );
+        },
       ),
     );
   }

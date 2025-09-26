@@ -1,4 +1,5 @@
-// features/courses/models/course_meta_model.dart
+import 'course_summary_model.dart';
+
 class CourseMeta {
   final int id;
   final String title;
@@ -43,3 +44,26 @@ class CourseMeta {
     );
   }
 }
+
+// class CourseMeta {
+//   final int id;
+//   final String title;
+//   final String? code;
+//   final String? description;
+
+//   CourseMeta({
+//     required this.id,
+//     required this.title,
+//     this.code,
+//     this.description,
+//   });
+
+//   factory CourseMeta.fromJson(Map<String, dynamic> json) {
+//     return CourseMeta(
+//       id: json['id'] as int,
+//       title: json['title'] as String,
+//       code: json['code'] as String?,
+//       description: json['description'] as String?,
+//     );
+//   }
+// }
