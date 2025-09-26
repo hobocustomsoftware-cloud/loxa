@@ -22,3 +22,19 @@ class CourseSummary {
     programLabel: j['program_label'] as String?,
   );
 }
+
+// class CourseSummary {
+//   final int id;
+//   final String title;
+//   final String? code;
+
+//   CourseSummary({required this.id, required this.title, this.code});
+
+//   factory CourseSummary.fromJson(Map<String, dynamic> json) {
+//     return CourseSummary(
+//       id: json['id'] as int,
+//       title: json['title'] as String,
+//       code: json['code'] as String?,
+//     );
+//   }
+// }

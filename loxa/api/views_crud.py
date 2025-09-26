@@ -6,12 +6,13 @@ from rest_framework.permissions import IsAuthenticated, SAFE_METHODS
 from rest_framework.decorators import action
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.db.models import Q, Prefetch
-
+from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, NumberFilter
 
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 
+from api.models import Attendance, LiveSession
 from orgs.permissions import IsOrgMemberOrPreviewReadOnly
 from .models_academics import Course, Enrollment, Module, Lesson, LessonAsset
 from .serializers import CourseSer, CourseTreeSerializer,  LessonSer, AssetSer
@@ -255,3 +256,33 @@ class CourseTreeView(generics.RetrieveAPIView):
         return Course.objects.only("id","title").prefetch_related(
             Prefetch("modules", queryset=module_qs)
         )
+
+
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        u = request.user
+        return Response({
+            "id": u.id,
+            "username": u.username,
+            "email": u.email,
+            "is_staff": u.is_staff,
+            "is_superuser": u.is_superuser,
+        })
+
+
+
+class AdminStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({"detail":"forbidden"}, status=403)
+        return Response({
+            "courses": Course.objects.count(),
+            "modules": Module.objects.count(),
+            "lessons": Lesson.objects.count(),
+            "sessions": LiveSession.objects.count(),
+            "attendance": Attendance.objects.count(),
+        })

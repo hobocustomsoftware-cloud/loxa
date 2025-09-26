@@ -1,6 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+
+from accounts.views import MeView
+from .auth_views import SessionLoginView
+from .views_admin import admin_metrics
 from . import views_crud, views_sessions, views_agora, social_views
+
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from collections import OrderedDict
@@ -30,11 +35,13 @@ class MyRouter(DefaultRouter):
             safe_add('phone-login', 'phone')
             safe_add('courses-tree', 'course-tree')
 
+            safe_add('admin-state', 'admin-state')
+
             return Response(data)
 
 # 👇 Use MyRouter (not DefaultRouter)
 router = MyRouter()
-router.register(r"sessions", views_sessions.LiveSessionViewSet, basename="session")
+router.register(r'live-sessions', views_sessions.LiveSessionViewSet, basename='live-session')
 router.register(r"seats", views_sessions.SeatReservationViewSet, basename="seat")
 router.register(r"attendance", views_sessions.AttendanceViewSet, basename="attendance")
 router.register(r"courses", views_crud.CourseViewSet, basename="course")
@@ -53,7 +60,16 @@ urlpatterns = [
     path("agora/token/", views_agora.AgoraTokenView.as_view(), name="agora-token"),
     path("auth/phone", include("authphone.urls")),
 
-    path("courses/<int:pk>/tree/", views_crud.CourseTreeView.as_view(), name="course-tree")
+    path("courses/<int:pk>/tree/", views_crud.CourseTreeView.as_view(), name="course-tree"),
+
+    path("auth/me/", MeView.as_view(), name="auth-me"),
+
+    path("admin/stats/", views_crud.AdminStatsView.as_view()),
+
+    path("admin/metrics/", admin_metrics, name="admin-metrics"),
+
+    path("auth/session/login", SessionLoginView.as_view()),
+    path("auth/session/logout", views_sessions.SessionLogoutView.as_view()),
 
     # If you use SimpleJWT defaults (uncomment if you have them wired)
     # path("auth/jwt/create/", TokenObtainPairView.as_view(), name="token_obtain_pair"),

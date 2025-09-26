@@ -178,6 +178,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 AUTH_USER_MODEL = "accounts.User"
+AUTH_ORG_MODEL = "accounts.Organization"
 
 
 
@@ -208,6 +209,7 @@ REST_FRAMEWORK = {
         "anon": "30/min",
         "user": "120/min",
         "session_join": "60/min",
+        "agora_token": "30/min",
     },
 
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../../core/api/dio_client.dart';
-import '../../core/utils/constants.dart';
+import '../../../core/api/dio_client.dart';
+import '../../../core/utils/constants.dart';
 
 class AuthController extends ChangeNotifier {
   final _storage = const FlutterSecureStorage();

@@ -1,129 +1,65 @@
+// lib/core/api/dio_client.dart
 import 'package:dio/dio.dart';
-import '../utils/constants.dart';
+import 'package:flutter/foundation.dart';
+import '../../features/auth/data/auth_repository.dart';
+import 'package:dio/browser.dart' as browser; // <-- for web cookies
 
 class DioClient {
   DioClient._();
   static final DioClient instance = DioClient._();
 
-  final Dio dio = Dio(
+  static final base = kIsWeb
+      ? 'http://localhost:8000/api/' // <- trailing slash ✅
+      : 'http://10.0.2.2:8000/api/'; // <- trailing slash ✅
+
+  final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: Constants.apiBase,
+      baseUrl: base,
       connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30),
-      headers: {'Accept': 'application/json'},
+      receiveTimeout: const Duration(seconds: 20),
+      validateStatus: (s) => s != null && s < 500,
     ),
   );
 
-  String? _access;
-  String? _refresh;
-  String? _orgId;
+  Dio get client => _dio;
+  Dio get dio => _dio;
 
-  void setTokens({required String access, String? refresh}) {
-    _access = access;
-    _refresh = refresh;
-  }
-
-  void setOrgId(String? orgId) => _orgId = orgId;
+  bool _setupDone = false;
 
   void setupInterceptors() {
-    dio.interceptors.clear();
-    dio.interceptors.add(
+    if (_setupDone) return;
+    client.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (req, h) {
-          if (_access?.isNotEmpty == true) {
-            req.headers['Authorization'] = 'Bearer $_access';
+        onRequest: (options, handler) {
+          final p = Uri.tryParse(options.path)?.path ?? options.path;
+          final isAuth =
+              p.startsWith('/auth/') ||
+              p.startsWith('/token/') ||
+              p.startsWith('/accounts/');
+          if (!isAuth) {
+            final access = AuthRepository.instance.accessToken;
+            if (access?.isNotEmpty == true) {
+              options.headers['Authorization'] = 'Bearer $access';
+            }
           }
-          // Dev/test အတွက် org header ထည့်ထားမှ backend 403 မပေးနိုင်
-          if (_orgId?.isNotEmpty == true) {
-            req.headers['X-Org-ID'] = _orgId;
-          } else {
-            req.headers['X-Org-ID'] = '1'; // fallback
-          }
-          h.next(req);
+          return handler.next(options);
         },
-        onError: (err, h) async {
-          if (err.response?.statusCode == 401 && _refresh?.isNotEmpty == true) {
-            try {
-              final r = await dio.post(
-                Constants.jwtRefresh,
-                data: {'refresh': _refresh},
-              );
-              final newAccess = r.data['access'] as String?;
-              if (newAccess != null && newAccess.isNotEmpty) {
-                _access = newAccess;
-                err.requestOptions.headers['Authorization'] =
-                    'Bearer $newAccess';
-                if (_orgId?.isNotEmpty == true) {
-                  err.requestOptions.headers['X-Org-ID'] = _orgId!;
-                }
-                final clone = await dio.fetch(err.requestOptions);
-                return h.resolve(clone);
-              }
-            } catch (_) {}
-          }
-          h.next(err);
-        },
+        onError: (e, h) => h.next(e),
       ),
     );
+    _setupDone = true;
   }
 
-  Future<Map<String, dynamic>> fetchAgoraToken(
-    int sessionId,
-    String role,
-  ) async {
-    final r = await DioClient.instance.dio.post(
-      '/agora/token/',
-      data: {
-        "session_id": sessionId,
-        "role": role, // "publisher" or "subscriber"
-      },
-    );
-    return r.data as Map<String, dynamic>;
+  void clearTokens() {
+    _dio.options.headers.remove('Authorization');
+    // _dio.options.headers.remove('x-refresh-token'); // ရှိရင်ပဲ
+  }
+
+  void setTokens({required String access, String? refresh}) {
+    _dio.options.headers['Authorization'] = 'Bearer $access';
+  }
+
+  void clearAuth() {
+    clearTokens();
   }
 }
-
-// // core/api/dio_client.dart
-// import 'package:dio/dio.dart';
-
-// class DioClient {
-//   DioClient._();
-//   static final instance = DioClient._();
-
-//   final dio = Dio(
-//     BaseOptions(
-//       baseUrl: 'http://localhost:8000/api/',
-//       connectTimeout: const Duration(seconds: 10),
-//       receiveTimeout: const Duration(seconds: 20),
-//       validateStatus: (s) =>
-//           s != null && s < 500, // let 4xx fall through to app
-//     ),
-//   );
-
-//   // set this from your app (settings/login/org switcher)
-//   int? _orgId; // null => public
-
-//   void setOrgId(int? id) {
-//     _orgId = id;
-//   }
-
-//   void setupInterceptors() {
-//     dio.interceptors.clear();
-//     dio.interceptors.add(
-//       InterceptorsWrapper(
-//         onRequest: (options, handler) {
-//           options.headers.remove('X-Org-ID');
-//           if (_orgId != null && _orgId! > 0) {
-//             options.headers['X-Org-ID'] = _orgId.toString();
-//           }
-//           return handler.next(options);
-//         },
-//         onError: (e, handler) {
-//           // debug: print server body to see exact 403 reason
-//           // ignore: avoid_print
-//           print('HTTP ${e.response?.statusCode} -> ${e.response?.data}');
-//           return handler.next(e);
-//         },
-//       ),
-//     );
-//   }
-// }

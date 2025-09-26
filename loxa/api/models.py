@@ -13,6 +13,7 @@ class LiveSession(models.Model):
     duration_minutes = models.PositiveIntegerField(default=60)
     max_participants = models.PositiveIntegerField(default=20)
     recording_enabled = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         ordering = ["-start_time"]
     def __str__(self):

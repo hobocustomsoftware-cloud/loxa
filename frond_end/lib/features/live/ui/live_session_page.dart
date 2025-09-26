@@ -1,291 +1,187 @@
-// lib/features/live/ui/live_session_page.dart
-import 'dart:io';
+// lib/features/live/ui/session_live_page.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
+import '../../../core/config/agora_config.dart';
 
-import '../data/live_repository.dart';
-import '../models/live_session_model.dart';
+import '../data/live_api.dart';
 
-class LiveSessionPage extends StatefulWidget {
+class SessionLivePage extends StatefulWidget {
+  const SessionLivePage({
+    super.key,
+    required this.sessionId,
+    required this.asHost,
+  });
   final int sessionId;
-  const LiveSessionPage({super.key, required this.sessionId});
+  final bool asHost;
 
   @override
-  State<LiveSessionPage> createState() => _LiveSessionPageState();
+  State<SessionLivePage> createState() => _SessionLivePageState();
 }
 
-class _LiveSessionPageState extends State<LiveSessionPage> {
-  final _repo = LiveRepository();
+class _SessionLivePageState extends State<SessionLivePage> {
+  late final RtcEngine _engine = createAgoraRtcEngine();
 
-  RtcEngine? _engine;
-  LiveSession? _session;
+  String _appId = '';
+  String _channel = '';
+  String _token = '';
+  int _uid = 0;
+
+  bool _booting = true;
   String? _err;
-  bool _loading = true;
-
   bool _joined = false;
-  int? _localUid;
-  final Set<int> _remoteUids = {};
-
-  bool _micOn = true;
-  bool _camOn = true;
-  bool _speakerOn = true;
+  final _remoteUids = <int>{};
 
   @override
   void initState() {
     super.initState();
-    _bootstrap();
+    _boot();
   }
 
   @override
   void dispose() {
-    _cleanup();
+    _engine.leaveChannel();
+    _engine.release();
     super.dispose();
   }
 
-  Future<void> _bootstrap() async {
-    setState(() {
-      _loading = true;
-      _err = null;
-    });
+  Future<void> _boot() async {
     try {
-      // 1) Camera + Mic Permission
-      await _ensurePermissions();
-
-      // 2) Load session meta
-      final s = await _repo.getSession(widget.sessionId);
-
-      // 3) Mark attendance (join)
-      await _repo.join(widget.sessionId);
-
-      // 4) Request Agora Token
-      final token = await _repo.getAgoraToken(
-        channel: s.channelName,
-        role: 'publisher',
+      // (A) backend → token/app_id/channel/uid
+      final t = await LiveApi.instance.token(
+        widget.sessionId,
+        asHost: widget.asHost,
       );
 
-      // 5) Init Agora Engine
-      final engine = createAgoraRtcEngine();
-      await engine.initialize(
-        const RtcEngineContext(appId: 'YOUR_AGORA_APP_ID'),
-      );
-
-      engine.registerEventHandler(
-        RtcEngineEventHandler(
-          onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-            setState(() {
-              _joined = true;
-              _localUid =
-                  connection.localUid; // ✅ v6.x မှာ connection ထဲကနေ UID ယူရမယ်
-            });
-          },
-
-          onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-            setState(() => _remoteUids.add(remoteUid));
-          },
-          onUserOffline:
-              (
-                RtcConnection connection,
-                int remoteUid,
-                UserOfflineReasonType reason,
-              ) {
-                setState(() => _remoteUids.remove(remoteUid));
-              },
-        ),
-      );
-
-      await engine.enableVideo();
-      await engine.enableAudio();
-      await engine.setEnableSpeakerphone(_speakerOn);
-
-      await engine.startPreview();
-      await engine.joinChannel(
-        token: token.rtcToken,
-        channelId: s.channelName,
-        uid: int.tryParse(token.uid) ?? 0,
-        options: const ChannelMediaOptions(
-          clientRoleType: ClientRoleType.clientRoleBroadcaster,
-          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
-        ),
-      );
-
-      setState(() {
-        _engine = engine;
-        _session = s;
-        _loading = false;
-      });
-    } catch (e) {
-      setState(() {
-        _err = '$e';
-        _loading = false;
-      });
-    }
-  }
-
-  Future<void> _ensurePermissions() async {
-    if (Platform.isAndroid || Platform.isIOS) {
-      final cam = await Permission.camera.request();
-      final mic = await Permission.microphone.request();
-      if (!cam.isGranted || !mic.isGranted) {
-        throw Exception('Camera/Microphone permissions are required.');
+      // (B) prefer server app_id; otherwise use --dart-define=AGORA_APP_ID
+      final appId = resolveAppId(fromServer: t.appId);
+      if (appId.isEmpty) {
+        throw StateError(
+          'Agora App ID is missing (server app_id empty, and no --dart-define).',
+        );
       }
+
+      _appId = appId;
+      _channel = t.channel;
+      _token = t.token; // may be ''
+      _uid = t.uid;
+
+      await _initEngine(); // only now, after we have _appId
+      await _join();
+
+      if (mounted) setState(() => _booting = false);
+    } catch (e, st) {
+      debugPrint('boot error: $e\n$st');
+      if (mounted)
+        setState(() {
+          _err = e.toString();
+          _booting = false;
+        });
     }
   }
 
-  Future<void> _cleanup() async {
-    try {
-      if (_engine != null) {
-        await _engine!.leaveChannel();
-        await _engine!.stopPreview();
-        await _engine!.release();
-      }
-    } catch (_) {}
-    if (_session != null) {
-      try {
-        await _repo.leave(_session!.id);
-      } catch (_) {}
+  Future<void> _initEngine() async {
+    await _engine.initialize(
+      RtcEngineContext(
+        appId: _appId,
+        channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+      ),
+    );
+
+    await _engine.enableVideo();
+
+    // Broadcaster မဟုတ်ရင် preview မစရ
+    if (widget.asHost) {
+      await _engine.startPreview();
     }
+
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        // v6: (RtcConnection connection, int elapsed)
+        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
+          if (!mounted) return;
+          setState(() => _joined = true);
+        },
+
+        // v6: (RtcConnection connection, int remoteUid, int elapsed)
+        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
+          if (!mounted) return;
+          setState(() => _remoteUids.add(remoteUid));
+        },
+
+        // v6: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason)
+        onUserOffline:
+            (
+              RtcConnection connection,
+              int remoteUid,
+              UserOfflineReasonType reason,
+            ) {
+              if (!mounted) return;
+              setState(() => _remoteUids.remove(remoteUid));
+            },
+
+        // v6: (RtcConnection connection, RtcStats stats)
+        onLeaveChannel: (RtcConnection connection, RtcStats stats) {
+          if (!mounted) return;
+          setState(() => _joined = false);
+        },
+      ),
+    );
+
+    await _engine.setClientRole(
+      role: widget.asHost
+          ? ClientRoleType.clientRoleBroadcaster
+          : ClientRoleType.clientRoleAudience,
+    );
   }
 
-  void _toggleMic() {
-    if (_engine == null) return;
-    setState(() => _micOn = !_micOn);
-    _engine!.muteLocalAudioStream(!_micOn);
-  }
-
-  void _toggleCam() {
-    if (_engine == null) return;
-    setState(() => _camOn = !_camOn);
-    _engine!.muteLocalVideoStream(!_camOn);
-  }
-
-  void _switchCamera() => _engine?.switchCamera();
-
-  void _toggleSpeaker() {
-    if (_engine == null) return;
-    setState(() => _speakerOn = !_speakerOn);
-    _engine!.setEnableSpeakerphone(_speakerOn);
+  Future<void> _join() async {
+    await _engine.joinChannel(
+      token: _token,
+      channelId: _channel,
+      uid: _uid,
+      options: ChannelMediaOptions(
+        channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
+        clientRoleType: widget.asHost
+            ? ClientRoleType.clientRoleBroadcaster
+            : ClientRoleType.clientRoleAudience,
+        publishMicrophoneTrack: widget.asHost,
+        publishCameraTrack: widget.asHost,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_booting) {
+      return const Center(child: CircularProgressIndicator());
     }
     if (_err != null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Live Session')),
-        body: Center(
-          child: Text(_err!, style: const TextStyle(color: Colors.red)),
-        ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_session?.title ?? 'Live Session'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.call_end),
-            color: Colors.red,
-            onPressed: () => Navigator.of(context).maybePop(),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _joined
-                ? _videoGrid()
-                : const Center(child: Text('Joining...')),
-          ),
-          _controlBar(),
-        ],
-      ),
-    );
-  }
-
-  Widget _videoGrid() {
-    final views = <Widget>[];
-
-    if (_engine != null) {
-      // local
-      views.add(
-        AgoraVideoView(
-          controller: VideoViewController(
-            rtcEngine: _engine!,
-            canvas: VideoCanvas(uid: 0),
-          ),
-        ),
-      );
-
-      // remotes
-      for (final uid in _remoteUids) {
-        views.add(
-          AgoraVideoView(
-            controller: VideoViewController.remote(
-              rtcEngine: _engine!,
-              canvas: VideoCanvas(uid: uid),
-              connection: RtcConnection(channelId: _session!.channelName),
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 40),
+            const SizedBox(height: 8),
+            Text(_err!, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _err = null;
+                  _booting = true;
+                });
+                _boot();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
             ),
-          ),
-        );
-      }
-    }
-
-    if (views.isEmpty) {
-      return const Center(
-        child: Text('No video yet', style: TextStyle(color: Colors.white)),
+          ],
+        ),
       );
     }
 
-    if (views.length == 1) {
-      return Container(
-        color: Colors.black,
-        child: Center(child: SizedBox(height: 220, child: views.first)),
-      );
-    }
-
-    return GridView.builder(
-      padding: const EdgeInsets.all(8),
-      itemCount: views.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: views.length <= 2 ? 2 : 3,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-      ),
-      itemBuilder: (_, i) => Container(color: Colors.black, child: views[i]),
-    );
-  }
-
-  Widget _controlBar() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _roundBtn(
-            icon: _micOn ? Icons.mic : Icons.mic_off,
-            onTap: _toggleMic,
-          ),
-          _roundBtn(
-            icon: _camOn ? Icons.videocam : Icons.videocam_off,
-            onTap: _toggleCam,
-          ),
-          _roundBtn(icon: Icons.flip_camera_android, onTap: _switchCamera),
-          _roundBtn(
-            icon: _speakerOn ? Icons.volume_up : Icons.volume_off,
-            onTap: _toggleSpeaker,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _roundBtn({required IconData icon, required VoidCallback onTap}) {
-    return InkResponse(
-      onTap: onTap,
-      child: CircleAvatar(radius: 26, child: Icon(icon)),
-    );
+    // … UI for local/remote video views …
+    return const Text('Live joined'); // replace with your video widgets
   }
 }

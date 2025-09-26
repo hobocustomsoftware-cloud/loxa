@@ -46,9 +46,10 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSCameraUsageDescription</key>
-	<string>Need camera for live class</string>
+	<string>This app uses the camera for live video.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Need microphone for live class</string>
+	<string>This app uses the microphone for live audio.</string>
+
 
 </dict>
 </plist>

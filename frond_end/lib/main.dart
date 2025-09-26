@@ -1,26 +1,45 @@
 import 'package:flutter/material.dart';
-import 'app_router.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
+
 import 'core/api/dio_client.dart';
+import 'features/auth/controllers/auth_controller.dart';
+import 'app_router.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  DioClient.instance.setupInterceptors(); // add X-Org-ID header globally
-  runApp(const LoxaApp());
+  DioClient.instance.setupInterceptors();
+
+  runApp(
+    ChangeNotifierProvider(
+      create: (_) => AuthController()..boot(),
+      child: const LoxaApp(),
+    ),
+  );
 }
 
-class LoxaApp extends StatelessWidget {
+class LoxaApp extends StatefulWidget {
   const LoxaApp({super.key});
+  @override
+  State<LoxaApp> createState() => _LoxaAppState();
+}
+
+class _LoxaAppState extends State<LoxaApp> {
+  late final GoRouter _router;
+
+  @override
+  void initState() {
+    super.initState();
+    final auth = context.read<AuthController>(); // read only
+    _router = buildRouter(auth); // refreshListenable: auth
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'Loxa',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0F62FE)),
-        useMaterial3: true,
-      ),
-      routerConfig: appRouter,
+      title: 'Loxa',
+      routerConfig: _router,
     );
   }
 }

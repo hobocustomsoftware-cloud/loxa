@@ -2,7 +2,10 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .serializers import MeSerializer
 from .serializers import PhoneRegisterSerializer, PhoneLoginSerializer, User
 from django.contrib.auth import get_user_model
 
@@ -58,3 +61,9 @@ class PhoneLoginView(generics.GenericAPIView):
 #         ser.is_valid(raise_exception=True)
 #         token_data = ser.save()
 #         return Response(token_data, status=status.HTTP_200_OK)
+
+
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        return Response(MeSerializer(request.user).data)

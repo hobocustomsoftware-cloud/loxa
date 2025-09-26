@@ -73,7 +73,7 @@ class LiveSessionAdmin(admin.ModelAdmin):
     list_display = (
         "id", "org", "title", "channel_name", "owner",
         "start_time", "duration_minutes", "max_participants",
-        "recording_enabled", "seats_count", "attendance_count",
+        "recording_enabled", "seats_count", "attendance_count", "created_at"
     )
     list_filter  = ("org", "recording_enabled", "owner")
     date_hierarchy = "start_time"

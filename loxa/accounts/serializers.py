@@ -1,9 +1,9 @@
 from rest_framework import serializers
-# from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model
 from .models import  User
 from django.utils.crypto import get_random_string
 
-# User = get_user_model()
+User = get_user_model()
 
 class PhoneRegisterSerializer(serializers.ModelSerializer):
     class Meta:
@@ -74,3 +74,88 @@ class PhoneLoginSerializer(serializers.Serializer):
 #             "user_id": user.id, # type: ignore
 #             "phone_number": user.phone_number
 #         }
+
+
+
+from django.contrib.auth import get_user_model
+from rest_framework import serializers
+from .models import OrganizationMembership, OrgRole
+
+User = get_user_model()
+
+class OrgMembershipMiniSer(serializers.ModelSerializer):
+    orgId   = serializers.IntegerField(source="org.id", read_only=True)
+    orgName = serializers.CharField(source="org.name", read_only=True)
+    orgSlug = serializers.CharField(source="org.slug", read_only=True)
+
+    class Meta:
+        model  = OrganizationMembership
+        fields = ("orgId", "orgName", "orgSlug", "role")
+
+class MeSerializer(serializers.ModelSerializer):
+    # server-side boolean flags (existing)
+    isStaff      = serializers.BooleanField(source="is_staff", read_only=True)
+    isSuperuser  = serializers.BooleanField(source="is_superuser", read_only=True)
+    isAdmin      = serializers.SerializerMethodField()
+    isEditor     = serializers.SerializerMethodField()
+    isModerator  = serializers.SerializerMethodField()
+
+    # ✅ NEW: global roles (slug list)
+    roles        = serializers.SerializerMethodField()
+
+    # ✅ NEW: org memberships (for student/teacher/parent)
+    orgs         = serializers.SerializerMethodField()
+    # optional: active org role if you use org middleware
+    activeOrgRole = serializers.SerializerMethodField()
+
+    # ✅ NEW: abilities used by Flutter UI
+    canHostLive  = serializers.SerializerMethodField()
+    canJoinLive  = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = User
+        fields = (
+            "id","email","first_name","last_name",
+            "isStaff","isSuperuser","isAdmin","isEditor","isModerator",
+            "roles","orgs","activeOrgRole",
+            "canHostLive","canJoinLive",
+        )
+
+    # ---- role/flag resolvers ----
+    def get_isAdmin(self, obj):     return obj.is_admin
+    def get_isEditor(self, obj):    return obj.is_editor
+    def get_isModerator(self, obj): return obj.is_moderator
+
+    def get_roles(self, obj):
+        # Role M2M + fallback to Group names
+        slugs = set(obj.roles.values_list("slug", flat=True))
+        slugs.update(obj.groups.values_list("name", flat=True))
+        # normalize (only the ones we care)
+        wanted = {"super_admin","admin","editor","moderator","teacher","student","parent"}
+        return sorted(list(slugs & wanted))
+
+    def get_orgs(self, obj):
+        qs = OrganizationMembership.objects.filter(user=obj).select_related("org")
+        return OrgMembershipMiniSer(qs, many=True).data
+
+    def get_activeOrgRole(self, obj):
+        request = self.context.get("request")
+        org = getattr(request, "org", None)
+        if not org:
+            return None
+        m = OrganizationMembership.objects.filter(org=org, user=obj).only("role").first()
+        return m.role if m else None
+
+    def get_canHostLive(self, obj):
+        # admin / teacher / moderator can host
+        return (
+            obj.is_admin
+            or obj.roles.filter(slug__in=["teacher","moderator"]).exists()
+            or obj.groups.filter(name__in=["teacher","moderator"]).exists()
+        )
+
+    def get_canJoinLive(self, obj):
+        # logged-in + any of these roles
+        return True  # already authenticated endpoint; keep simple
+
+
