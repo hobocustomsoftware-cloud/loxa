@@ -1,45 +1,41 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:go_router/go_router.dart';
-
 import 'core/api/dio_client.dart';
 import 'features/auth/controllers/auth_controller.dart';
+import 'features/auth/data/auth_repository.dart';
 import 'app_router.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 1) storage ထဲက tokens/me hydrate
+  await AuthRepository.instance.init();
+
+  // 2) Dio interceptors (Authorization header ထည့်)
   DioClient.instance.setupInterceptors();
 
+  // 3) AuthController ကို create + init
+  final auth = AuthController();
+  await auth.init();
+
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => AuthController()..boot(),
-      child: const LoxaApp(),
+    ChangeNotifierProvider.value(
+      value: auth,
+      child: MyApp(auth: auth),
     ),
   );
 }
 
-class LoxaApp extends StatefulWidget {
-  const LoxaApp({super.key});
-  @override
-  State<LoxaApp> createState() => _LoxaAppState();
-}
-
-class _LoxaAppState extends State<LoxaApp> {
-  late final GoRouter _router;
-
-  @override
-  void initState() {
-    super.initState();
-    final auth = context.read<AuthController>(); // read only
-    _router = buildRouter(auth); // refreshListenable: auth
-  }
+class MyApp extends StatelessWidget {
+  const MyApp({super.key, required this.auth});
+  final AuthController auth;
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
+      routerConfig: buildRouter(auth), // <-- GoRouter に渡す
       debugShowCheckedModeBanner: false,
-      title: 'Loxa',
-      routerConfig: _router,
     );
   }
 }

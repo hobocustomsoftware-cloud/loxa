@@ -23,11 +23,7 @@ PY
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 
-# Minimal health endpoint if you haven't added yet:
-#   path("healthz/", lambda r: HttpResponse("ok"))
-# Run ASGI server (Daphne works for future Channels)
-exec daphne -b 0.0.0.0 -p 8000 loxa.asgi:application gunicorn loxa.asgi:application -k uvicorn.workers.UvicornWorker -c gunicorn.conf.py
-
-python manage.py collectstatic --noinput
-
-
+# 🛑 FIX: Use exec to replace the shell process with gunicorn.
+# This ensures gunicorn becomes the main process (PID 1) and receives signals correctly.
+echo "Starting Gunicorn..."
+exec gunicorn loxa.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000

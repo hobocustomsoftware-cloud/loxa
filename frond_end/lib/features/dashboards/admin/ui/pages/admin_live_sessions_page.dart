@@ -11,130 +11,125 @@ class AdminLiveSessionsPage extends StatefulWidget {
 }
 
 class _AdminLiveSessionsPageState extends State<AdminLiveSessionsPage> {
-  late Future<List<Map<String, dynamic>>> _future;
-  bool _creating = false;
+  Future<List<Map<String, dynamic>>>? _future;
 
   @override
-  void initState() {
-    super.initState();
-    _future = LiveApi.instance.listSessions(mine: true);
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _future ??= LiveApi.instance.listSessions(mine: true);
   }
 
-  Future<void> _reload() async {
+  void _reload() {
     setState(() => _future = LiveApi.instance.listSessions(mine: true));
   }
 
   Future<void> _create() async {
-    if (_creating) return;
-    setState(() => _creating = true);
     try {
       await LiveApi.instance.createSession(
         title: 'Session ${DateTime.now().millisecondsSinceEpoch}',
       );
-      if (mounted) await _reload();
+      _reload();
     } catch (e) {
-      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Create failed: $e')));
-    } finally {
-      if (mounted) setState(() => _creating = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Scaffold ထဲ → Column → Expanded(ListView) : single scrollable
-    return Scaffold(
-      backgroundColor: Colors.transparent, // shell bg ကိုလိုချင်လို့
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Toolbar
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Live Sessions',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: _creating ? null : _create,
-                  icon: _creating
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.add),
-                  label: Text(_creating ? 'Creating…' : 'Create'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-
-            // Body
-            Expanded(
-              child: FutureBuilder<List<Map<String, dynamic>>>(
-                future: _future,
-                builder: (context, snap) {
-                  if (snap.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snap.hasError) {
-                    return _ErrorBox(
-                      message: 'Failed to load sessions',
-                      detail: snap.error.toString(),
-                      onRetry: _reload,
-                    );
-                  }
-                  final items = snap.data ?? const [];
-                  if (items.isEmpty) {
-                    return RefreshIndicator(
-                      onRefresh: _reload,
-                      child: ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        children: const [
-                          SizedBox(height: 120),
-                          Center(child: Text('No sessions yet')),
-                          SizedBox(height: 400),
-                        ],
+    final future = _future ?? Future.value(const <Map<String, dynamic>>[]);
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: future,
+      builder: (context, snap) {
+        final slivers = <Widget>[
+          // toolbar
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      decoration: InputDecoration(
+                        hintText: 'Search…',
+                        isDense: true,
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                    );
-                  }
-                  return RefreshIndicator(
-                    onRefresh: _reload,
-                    child: ListView.separated(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      itemCount: items.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
-                      itemBuilder: (context, i) {
-                        final s = items[i];
-                        final id = (s['id'] as num?)?.toInt() ?? 0;
-                        final title = (s['title'] ?? 'Untitled').toString();
-                        final start = (s['start_time'] ?? '').toString();
-                        return ListTile(
-                          title: Text(title),
-                          subtitle: Text(start),
-                          trailing: FilledButton(
-                            onPressed: id == 0
-                                ? null
-                                : () =>
-                                      context.go('/live/session/$id?role=host'),
-                            child: const Text('Open'),
-                          ),
-                        );
-                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.icon(
+                    onPressed: _create,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Create'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ];
+
+        if (snap.hasError) {
+          slivers.add(
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: Text('Failed to load')),
+            ),
+          );
+        } else if (snap.connectionState != ConnectionState.done) {
+          slivers.add(
+            const SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          );
+        } else {
+          final items = snap.data ?? const [];
+          if (items.isEmpty) {
+            slivers.add(
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: Text('No sessions yet')),
+              ),
+            );
+          } else {
+            slivers.add(
+              SliverList.separated(
+                itemCount: items.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (_, i) {
+                  final s = items[i];
+                  final id = s['id'];
+                  return ListTile(
+                    title: Text('${s['title']}'),
+                    subtitle: Text('${s['start_time']}'),
+                    trailing: FilledButton(
+                      onPressed: () =>
+                          context.go('/live/session/$id?role=host'),
+                      child: const Text('Open'),
                     ),
                   );
                 },
               ),
-            ),
-          ],
-        ),
-      ),
+            );
+          }
+        }
+
+        return RefreshIndicator.adaptive(
+          onRefresh: () async => _reload(),
+          child: CustomScrollView(
+            slivers: [
+              const SliverPadding(padding: EdgeInsets.all(16)),
+              ...slivers,
+              const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
+            ],
+          ),
+        );
+      },
     );
   }
 }

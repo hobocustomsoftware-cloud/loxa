@@ -10,8 +10,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend  # type: ignore
-
+from django.utils.text import slugify
 from django.contrib.auth import authenticate, login, logout
+
+from accounts.models import OrgRole, OrganizationMembership
 
 from .models import LiveSession, Attendance, SeatReservation
 from .serializers import (
@@ -63,70 +65,41 @@ class LiveSessionFilter(dj_filters.FilterSet):
 
 # ---------- Live Sessions ----------
 class LiveSessionViewSet(viewsets.ModelViewSet):
-
-    queryset = LiveSession.objects.select_related("org", "owner").all()
+    queryset = LiveSession.objects.select_related("org","owner").all()
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = LiveSessionSerializer
 
-    # 🧩 filters / ordering / search
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter]
-    filterset_class = LiveSessionFilter
-    ordering_fields = ["start_time", "title", "id"]
-    ordering = ["-start_time"]
-    search_fields = ["title"]
+    # ... (perform_create, join, leave) ...
 
-    # 🧩 ?owner=me support
-    def get_queryset(self):
-        qs = super().get_queryset()
-        owner = self.request.query_params.get("owner")
-        if owner == "me":
-            qs = qs.filter(owner=self.request.user)
-        ordering = self.request.query_params.get("ordering")
-        if ordering:
-            field = ordering.lstrip("-")
-            desc = ordering.startswith("-")
-            if field == "created_at":
-                field = "start_time"
-            if field in {"start_time", "title", "id"}:
-                qs = qs.order_by(f"{'-' if desc else ''}{field}")
-        return qs
+    def _slug(s: str) -> str: # type: ignore
+        return s.lower().replace(" ", "-")
 
-    # 🧩 auto channel_name on create
     def perform_create(self, serializer):
         user = self.request.user
         org = getattr(self.request, "org", None)
+        title = (self.request.data.get("title") or "Session") # type: ignore
+        base = slugify(title) or "session"
+        channel = f"{base}-{int(timezone.now().timestamp())}" # type: ignore
+        serializer.save(
+            owner=user,
+            org=org,
+            title=title,
+            channel_name=channel,
+            start_time=timezone.now(),
+        )
 
-        # (option) user ရဲ့ org attribute ရှိရင် default
-        if org is None and hasattr(user, "org"):
-            org = getattr(user, "org")
-
-        base = (self.request.data.get("title") or "session").lower().replace(" ", "-") # type: ignore
-        channel = f"{base}-{int(timezone.now().timestamp())}"
-
-        # org field က model မှာ null=True မဟုတ်ရင် ⇒ org မရှိရင် 400 ပြန်ချင်ရင် အောက်လို
-        # if org is None:
-        #     raise ValidationError({"org": "This field is required."})
-
-        save_kwargs = dict(owner=user, channel_name=channel)
-        if org is not None:
-            save_kwargs["org"] = org
-
-        serializer.save(**save_kwargs)
-
-
-    # ---- actions ----
-    @action(detail=True, methods=["POST"], throttle_classes=[SessionJoinThrottle])
+    @action(detail=True, methods=["POST"])
     def join(self, request, pk=None):
         sess = self.get_object()
         att, created = Attendance.objects.get_or_create(
             org=sess.org, session=sess, user=request.user,
-            defaults={"joined_at": timezone.now()},
+            defaults={"joined_at": timezone.now()}
         )
         if not created and att.left_at:
             att.joined_at = timezone.now()
             att.left_at = None
             att.total_seconds = 0
-            att.save(update_fields=["joined_at", "left_at", "total_seconds"])
+            att.save(update_fields=["joined_at","left_at","total_seconds"])
         return response.Response({"joined": True, "attendance_id": att.id})
 
     @action(detail=True, methods=["POST"])
@@ -135,41 +108,72 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
         try:
             att = Attendance.objects.get(org=sess.org, session=sess, user=request.user)
         except Attendance.DoesNotExist:
-            return response.Response({"detail": "not joined"}, status=400)
+            return response.Response({"detail":"not joined"}, status=400)
         if not att.left_at:
             att.left_at = timezone.now()
             if att.joined_at:
                 att.total_seconds = int((att.left_at - att.joined_at).total_seconds())
-            att.save(update_fields=["left_at", "total_seconds"])
+            att.save(update_fields=["left_at","total_seconds"])
         return response.Response({"left": True, "total_seconds": att.total_seconds})
 
+    def _can_host(self, user, sess: LiveSession) -> bool:
+        # global
+        if user.is_superuser or user.is_staff:
+            return True
+        if user.groups.filter(name__in=["super_admin","admin","moderator","editor","teacher"]).exists():
+            return True
+        # org-scoped (optional)
+        try:
+            return user.org_memberships.filter(
+                org=sess.org, role__in=["owner","admin","teacher"]
+            ).exists()
+        except Exception:
+            return False
+
+    def _user_can_host(user):
+        if getattr(user, "is_staff", False) or getattr(user, "is_superuser", False):
+            return True
+        # global roles via groups
+        allow_groups = {"super_admin","admin","moderator","editor","teacher"}
+        if user.groups.filter(name__in=allow_groups).exists(): # type: ignore
+            return True
+        # org-scoped roles (optional)
+        # return OrganizationMembership.objects.filter(user=user, role__in=["owner","admin","teacher"]).exists()
+        return False
+
     @action(
-        detail=True, methods=["GET"], url_path="rtc-token",
-        throttle_classes=[TokenThrottle], permission_classes=[permissions.IsAuthenticated],
+    detail=True, methods=["GET"], url_path="rtc-token",
+    throttle_classes=[TokenThrottle],
+    permission_classes=[permissions.IsAuthenticated],
     )
     def rtc_token(self, request, pk=None):
-        # 🧩 this MUST be INSIDE the ViewSet (previously it was top-level → 404)
         sess: LiveSession = self.get_object()
         user = request.user
 
         role_q = (request.query_params.get("role") or "audience").lower()
         want_host = role_q in ("host", "publisher", "broadcaster")
 
-        # only owner/staff/superuser can publish
-        is_host_allowed = (user == sess.owner) or getattr(user, "is_staff", False) or getattr(user, "is_superuser", False)
-        if want_host and not is_host_allowed:
-            return response.Response({"detail": "not allowed to publish"}, status=status.HTTP_403_FORBIDDEN)
+        # ✅ host ခွင့်စစ်
+        org = getattr(sess, "org", None)
+        is_owner = (user == sess.owner)
+        if want_host and not (is_owner or _user_can_host(user, org=org)):
+            return response.Response(
+                {"detail": "not allowed to publish"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         app_id = getattr(settings, "AGORA_APP_ID", "")
         app_cert = getattr(settings, "AGORA_APP_CERT", "")
         if not app_id or not app_cert:
             return response.Response({"detail": "agora creds missing"}, status=500)
 
-        expire_at = int(time.time()) + 60 * 60  # 1 hour
+        expire_at = int(time.time()) + 60 * 60
         uid = _uid_for(user)
-        role = ROLE_PUBLISHER if want_host else ROLE_SUBSCRIBER
+        role = 1 if want_host else 2  # 1=Publisher, 2=Subscriber
 
-        token = RtcTokenBuilder.buildTokenWithUid(app_id, app_cert, sess.channel_name, uid, role, expire_at)
+        token = RtcTokenBuilder.buildTokenWithUid(
+            app_id, app_cert, sess.channel_name, uid, role, expire_at
+        )
         return response.Response({
             "token": token,
             "channel": sess.channel_name,
@@ -178,6 +182,8 @@ class LiveSessionViewSet(viewsets.ModelViewSet):
             "expire_at": expire_at,
             "app_id": app_id,
         })
+
+
 
 
 # ---------- Moderation ----------
@@ -281,3 +287,68 @@ class SessionLogoutView(APIView):
 
 
 
+
+HOST_GLOBAL_GROUPS = {"super_admin", "admin", "moderator", "editor", "teacher"}
+
+def _is_global_host(user) -> bool:
+    # Django built-ins
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return True
+    # Groups
+    names = set(user.groups.values_list("name", flat=True))
+    return bool(HOST_GLOBAL_GROUPS & names)
+
+def _is_org_host(user, org) -> bool:
+    if not org:
+        return False
+    return OrganizationMembership.objects.filter(
+        org=org,
+        user=user,
+        role__in=[OrgRole.OWNER, OrgRole.ADMIN, OrgRole.TEACHER],
+    ).exists()
+
+
+def _user_can_host(user, org=None) -> bool:
+    """
+    Host တင်ခွင့်ရှိ/မရှိ စစ်—global + org scoped roles ကို မျက်နှာမူစစ်ပေးမယ်
+    """
+    if not getattr(user, "is_authenticated", False):
+        return False
+
+    # Superuser / staff သာလွန်ခွင့်
+    if getattr(user, "is_superuser", False) or getattr(user, "is_staff", False):
+        return True
+
+    # Global roles (accounts.User properties) — is_admin/is_editor/is_moderator/is_teacher
+    if any([
+        getattr(user, "is_admin", False),
+        getattr(user, "is_editor", False),
+        getattr(user, "is_moderator", False),
+        getattr(user, "is_teacher", False),
+    ]):
+        return True
+
+    # Groups fallback (အကယ်၍ properties မရှိသေး/မ expose လုပ်ရသေးပါက)
+    try:
+        if user.groups.filter(
+            name__in=["super_admin", "admin", "editor", "moderator", "teacher"]
+        ).exists():
+            return True
+    except Exception:
+        pass
+
+    # Org-scoped roles (owner/admin/teacher)
+    if org is not None:
+        try:
+            from accounts.models import OrganizationMembership, OrgRole
+            if OrganizationMembership.objects.filter(
+                org=org,
+                user=user,
+                role__in=[OrgRole.OWNER, OrgRole.ADMIN, OrgRole.TEACHER],
+            ).exists():
+                return True
+        except Exception:
+            # accounts import မအောင်လျှင် စော်ကားမထုတ်—False ပြန်
+            pass
+
+    return False

@@ -1,14 +1,13 @@
-// lib/features/auth/data/auth_repository.dart
+import 'package:google_sign_in/google_sign_in.dart';
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
+
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/api/dio_client.dart';
+import '../../../core/utils/constants.dart';
 import '../models/me.dart';
-
-class TokenPair {
-  final String access;
-  final String? refresh;
-  const TokenPair({required this.access, this.refresh});
-}
 
 class AuthRepository {
   AuthRepository._();
@@ -16,80 +15,203 @@ class AuthRepository {
 
   final Dio _dio = DioClient.instance.dio;
 
+  // 🛑 Google Sign In Configuration (Production Ready)
+  static final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: <String>['email', 'profile'],
+    // 1. Web Client ID (Frontend/Web/Django Admin Base ID)
+    clientId:
+        '676531831869-shs6inbdguae7ijmafs4ne98vp6s5vp1.apps.googleusercontent.com',
+
+    // 2. Server Client ID (Mobile App အတွက် Production Client ID)
+    // ✅ FIX: serverClientId is not needed for web. Use null or an empty string.
+    serverClientId: kIsWeb
+        ? '676531831869-shs6inbdguae7ijmafs4ne98vp6s5vp1.apps.googleusercontent.com'
+        : '676531831869-d23gl5i5f7qpra4et7bd077nkc2klmab.apps.googleusercontent.com',
+  );
+
   String? _access;
   String? _refresh;
   Me? _me;
-  bool _meLoaded = false;
 
-  // expose to others (DioClient, controllers…)
   String? get accessToken => _access;
   String? get refreshToken => _refresh;
   Me? get me => _me;
-  bool get meLoaded => _meLoaded;
 
-  void clearCache() {
-    _me = null;
-    _meLoaded = false;
+  static const _kAccess = 'auth.access';
+  static const _kRefresh = 'auth.refresh';
+  static const _kMe = 'auth.me';
+
+  Future<void> init() async {
+    final sp = await SharedPreferences.getInstance();
+    _access = sp.getString(_kAccess);
+    _refresh = sp.getString(_kRefresh);
+    final meStr = sp.getString(_kMe);
+    if (meStr != null) {
+      try {
+        _me = Me.fromJson(jsonDecode(meStr) as Map<String, dynamic>);
+      } catch (_) {}
+    }
+    if (_access != null && _access!.isNotEmpty) {
+      DioClient.instance.setTokens(access: _access!);
+      try {
+        // If fetching the user fails (e.g., token expired), it will be caught.
+        await fetchMe();
+      } catch (e) {
+        debugPrint('Failed to fetch user on init: $e');
+      }
+    }
   }
 
-  void clearAuthCache() => clearCache();
+  Future<void> saveTokens(String access, {String? refresh}) async {
+    final sp = await SharedPreferences.getInstance();
+    _access = access;
+    if (refresh != null) _refresh = refresh;
+    await sp.setString(_kAccess, _access!);
+    if (_refresh != null) await sp.setString(_kRefresh, _refresh!);
+    DioClient.instance.setTokens(access: _access!);
+  }
 
-  /// Login with email/password → /api/token/ (DRF SimpleJWT)
-  Future<TokenPair> login({
+  Future<void> updateAccess(String newAccess) async => saveTokens(newAccess);
+
+  Future<void> clearAuthCache() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kAccess);
+    await sp.remove(_kRefresh);
+    await sp.remove(_kMe);
+    _access = null;
+    _refresh = null;
+    _me = null;
+  }
+
+  Future<void> logout() async {
+    await _googleSignIn.signOut();
+    await clearAuthCache();
+    DioClient.instance.clearAuth();
+  }
+
+  // User profile အပြည့်အစုံကို /me/ endpoint မှတစ်ဆင့်သာ ရယူရန် ပြင်ဆင်ထားသည်။
+  Future<Me> fetchMe() async {
+    try {
+      // User profile အချက်အလက်အပြည့်အစုံကို /me/ endpoint ကသာ ပြန်ပေးသောကြောင့် ၎င်းကိုသာ အသုံးပြုသည်။
+      final r = await _dio.get('/me/');
+      if (r.statusCode == 200 && r.data is Map) {
+        _me = Me.fromJson((r.data as Map).cast<String, dynamic>());
+        final sp = await SharedPreferences.getInstance();
+        await sp.setString(_kMe, jsonEncode(r.data));
+        return _me!;
+      }
+      throw Exception('Failed to load user profile. Status: ${r.statusCode}');
+    } catch (e) {
+      throw Exception('Failed to load user profile (/me/): $e');
+    }
+  }
+
+  Future<void> loginWithPassword({
     required String email,
     required String password,
   }) async {
     final r = await _dio.post(
-      '/token/',
+      '${Constants.jwtCreate}', // /token/
       data: {'email': email, 'password': password},
     );
-
     if (r.statusCode == 200 && r.data is Map) {
-      final m = r.data as Map;
-      final access = m['access'] as String?;
+      final m = (r.data as Map).cast<String, dynamic>();
+      final access = (m['access'] as String?) ?? '';
       final refresh = m['refresh'] as String?;
-      if (access == null) {
-        throw Exception('No access token from server');
-      }
-      _access = access;
-      _refresh = refresh;
-      // set header for subsequent calls
-      DioClient.instance.setTokens(access: access, refresh: refresh);
-      return TokenPair(access: access, refresh: refresh);
+      if (access.isEmpty) throw Exception('No access token');
+      await saveTokens(access, refresh: refresh);
+      await fetchMe();
+      return;
     }
-    throw Exception('Login failed (${r.statusCode})');
+    // ✅ IMPROVEMENT: More descriptive error.
+    throw Exception('Login failed: ${r.statusCode} - ${r.data}');
   }
 
-  /// GET /api/auth/me/ → Me
-  Future<Me> loadMe() async {
-    final r = await _dio.get('/auth/me/');
-    if (r.statusCode == 200 && r.data is Map) {
-      _me = Me.fromJson(Map<String, dynamic>.from(r.data));
-      return _me!;
-    }
-    throw Exception('Failed to load profile (${r.statusCode})');
-  }
+  // ... (migrateLegacyKeys, devDangerWipeAllLocal စတဲ့ methods များ မပြောင်းလဲပါ) ...
 
-  /// Safe wrapper (returns Me or throws less)
-  Future<Me?> loadMeSafe() async {
+  // -----------------------------------------------------
+  // Google Sign In Method (Final Path Fix)
+  // -----------------------------------------------------
+  Future<Me?> signInWithGoogleFromMobile() async {
     try {
-      return await loadMe();
-    } catch (_) {
+      // 1. Trigger the Google Sign-In flow.
+      // `signInSilently` can cause issues with modern browser policies on web.
+      // A direct `signIn` is more reliable for the initial login.
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        return null;
+      }
+
+      return await _processGoogleSignIn(googleUser);
+    } catch (e) {
+      debugPrint('Google Sign In Error: $e');
+      // ✅ IMPROVEMENT: Sign out from Google to allow the user to try again cleanly.
+      await _googleSignIn.signOut();
       return null;
     }
   }
 
-  /// Called from DioClient when refresh succeeded
-  Future<void> updateAccess(String newAccess) async {
-    _access = newAccess;
-    DioClient.instance.setTokens(access: newAccess, refresh: _refresh);
+  /// Processes the Google sign-in account, sends the token to the backend,
+  /// and fetches the user profile. This can be used by both mobile and web flows.
+  Future<Me?> _processGoogleSignIn(GoogleSignInAccount googleUser) async {
+    try {
+      // 1. Obtain the authentication token from the signed-in user.
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      // 🛑 FIX 1: Get the correct token for the platform.
+      // For web, the ID token is in `accessToken`.
+      // For mobile, it's in `idToken`.
+      final String? token = kIsWeb
+          ? googleAuth.accessToken
+          : googleAuth.idToken;
+
+      if (token == null) {
+        throw Exception('Failed to get Google ID Token.');
+      }
+
+      debugPrint('Google Sign-In successful. Sending token to backend...');
+
+      // 2. Send the token to your Django backend.
+      final r = await _dio.post(
+        '${Constants.googleLoginToken}', // This should point to /web-auth/google/login/token/
+        data: {'access_token': token},
+      );
+
+      // 3. Process the response from your server.
+      if (r.statusCode == 200 && r.data is Map) {
+        final m = (r.data as Map).cast<String, dynamic>();
+        final access = (m['access'] as String?) ?? (m['key'] as String?) ?? '';
+        final refresh = (m['refresh'] as String?);
+
+        if (access.isEmpty) {
+          throw Exception(
+            'Backend did not return access token. Response: ${r.data}',
+          );
+        }
+
+        await saveTokens(access, refresh: refresh);
+        return await fetchMe();
+      }
+
+      // ✅ IMPROVEMENT: Better error logging with response data.
+      throw Exception(
+        'Google Auth failed at backend. Status: ${r.statusCode}, Message: ${r.statusMessage}, Data: ${r.data}',
+      );
+    } catch (e) {
+      debugPrint('Google Sign In Error: $e');
+      await _googleSignIn.signOut();
+      // Re-throw the exception so the UI layer can handle it.
+      throw Exception('Failed to process Google Sign-In: $e');
+    }
   }
 
-  /// Called from DioClient when refresh failed
-  Future<void> clearAuth() async {
-    _access = null;
-    _refresh = null;
-    _me = null;
-    DioClient.instance.clearTokens();
+  /// This method is now specifically for the web, to be called after
+  /// the Google button has returned a user.
+  Future<Me?> signInWithGoogleFromWeb(GoogleSignInAccount googleUser) async {
+    // The logic is now centralized in _processGoogleSignIn
+    return await _processGoogleSignIn(googleUser);
   }
 }

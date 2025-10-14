@@ -66,7 +66,11 @@ def _jwt_for(user):
 def _default_redirect_uri(request):
     # frontend local dev URL or your hosted callback
     # Note: Google console မှာ authorized redirect URI အဖြစ် ဒီ URL ကို စာရင်းသွင်းထားရပါမယ်
-    return request.build_absolute_uri("/auth/google/callback")
+    if settings.DEBUG:
+        return request.build_absolute_uri("/auth/google/callback")
+    else:
+        # Force HTTPS for production
+        return "https://lms.myanmarlink.online/auth/google/callback"
 
 class GoogleAuthUrlView(APIView):
     permission_classes = [permissions.AllowAny]
@@ -94,7 +98,16 @@ class GoogleAuthUrlView(APIView):
             "scope": scope,
         }
         url = f"{GOOGLE_AUTH_BASE}?{urlencode(params)}"
-        return Response({"auth_url": url})
+        
+        # Debug information
+        debug_info = {
+            "auth_url": url,
+            "redirect_uri_used": redirect_uri,
+            "client_id": client_id,
+            "debug_mode": settings.DEBUG,
+            "site_url": getattr(settings, 'SITE_URL', 'Not set'),
+        }
+        return Response(debug_info)
 
 
 
@@ -147,3 +160,33 @@ class GoogleExchangeView(APIView):
         )
         jwt = _jwt_for(user)
         return Response(jwt, status=200)
+
+
+class GoogleRedirectDebugView(APIView):
+    permission_classes = [permissions.AllowAny]
+    
+    def get(self, request):
+        """Debug view to check what redirect URIs are being generated"""
+        from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+        from allauth.socialaccount.providers.oauth2.views import OAuth2LoginView
+        
+        # Get the redirect URI that allauth would use
+        adapter = GoogleOAuth2Adapter(request)
+        redirect_uri = adapter.get_callback_url(request, None)
+        
+        # Get the redirect URI from our custom view
+        custom_redirect_uri = _default_redirect_uri(request)
+        
+        debug_info = {
+            "allauth_redirect_uri": redirect_uri,
+            "custom_redirect_uri": custom_redirect_uri,
+            "request_host": request.get_host(),
+            "request_scheme": request.scheme,
+            "request_meta_host": request.META.get('HTTP_HOST'),
+            "request_meta_scheme": request.META.get('HTTP_X_FORWARDED_PROTO', request.scheme),
+            "debug_mode": settings.DEBUG,
+            "site_url": getattr(settings, 'SITE_URL', 'Not set'),
+            "google_client_id": settings.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY,
+        }
+        
+        return Response(debug_info)

@@ -80,6 +80,7 @@ class PhoneLoginSerializer(serializers.Serializer):
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from .models import OrganizationMembership, OrgRole
+from allauth.socialaccount.models import SocialAccount
 
 User = get_user_model()
 
@@ -98,6 +99,7 @@ class MeSerializer(serializers.ModelSerializer):
     isSuperuser  = serializers.BooleanField(source="is_superuser", read_only=True)
     isAdmin      = serializers.SerializerMethodField()
     isEditor     = serializers.SerializerMethodField()
+    picture      = serializers.SerializerMethodField()
     isModerator  = serializers.SerializerMethodField()
 
     # ✅ NEW: global roles (slug list)
@@ -115,7 +117,7 @@ class MeSerializer(serializers.ModelSerializer):
     class Meta:
         model  = User
         fields = (
-            "id","email","first_name","last_name",
+            "id","email","first_name","last_name", "picture",
             "isStaff","isSuperuser","isAdmin","isEditor","isModerator",
             "roles","orgs","activeOrgRole",
             "canHostLive","canJoinLive",
@@ -125,6 +127,16 @@ class MeSerializer(serializers.ModelSerializer):
     def get_isAdmin(self, obj):     return obj.is_admin
     def get_isEditor(self, obj):    return obj.is_editor
     def get_isModerator(self, obj): return obj.is_moderator
+
+    def get_picture(self, obj: User) -> str | None:
+        """
+        Get user's profile picture URL from their social account.
+        """
+        try:
+            social_account = SocialAccount.objects.filter(user=obj).first()
+            return social_account.get_avatar_url() if social_account else None
+        except (ImportError, AttributeError, SocialAccount.DoesNotExist):
+            return None
 
     def get_roles(self, obj):
         # Role M2M + fallback to Group names
@@ -157,5 +169,3 @@ class MeSerializer(serializers.ModelSerializer):
     def get_canJoinLive(self, obj):
         # logged-in + any of these roles
         return True  # already authenticated endpoint; keep simple
-
-

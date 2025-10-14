@@ -22,12 +22,13 @@ class _AdminSignInPageState extends State<AdminSignInPage> {
   @override
   void initState() {
     super.initState();
-    // already logged-in & admin ⇒ auto redirect (do this after first frame)
+    // Already logged-in ⇒ auto-redirect to the right dashboard.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthController>();
-      if (auth.isAdmin && auth.access != null && mounted) {
-        context.go('/admin');
-      }
+      if (!auth.isLoggedIn) return;
+      final isAdminish = auth.isAdmin || auth.isModerator || auth.isEditor;
+      if (!mounted) return;
+      context.go(isAdminish ? '/admin/dashboard' : '/student/dashboard');
     });
   }
 
@@ -53,49 +54,39 @@ class _AdminSignInPageState extends State<AdminSignInPage> {
         email: _emailCtl.text.trim(),
         password: _passCtl.text,
       );
+      if (!mounted) return;
 
-      if (!mounted) return; // widget disposed ⇒ stop
-
-      if (ok && auth.isAdmin) {
-        // Navigate then exit without setState after go()
-        context.go('/admin');
+      if (!ok) {
+        setState(() => _err = auth.error ?? 'Login failed.');
         return;
       }
 
-      // login failed or not admin
-      setState(() {
-        _err = ok
-            ? 'Your account is not an admin.'
-            : (auth.error ?? 'Login failed.');
-      });
+      final isAdminish = auth.isAdmin || auth.isModerator || auth.isEditor;
+
+      // ✅ Navigate and return — don’t setState error after this.
+      context.go(isAdminish ? '/admin/dashboard' : '/student/dashboard');
+      return;
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _err = e.toString());
+      if (mounted) {
+        setState(() => _err = e.toString());
+      }
     } finally {
-      if (!mounted) return;
-      setState(() => _submitting = false);
+      if (mounted) {
+        setState(() => _submitting = false);
+      }
     }
   }
 
   String? _validateEmail(String? v) {
     if (v == null || v.trim().isEmpty) return 'Email is required';
     final email = v.trim();
-    // simple email check
     final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email);
     return ok ? null : 'Enter a valid email';
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthController>();
     final busy = _submitting;
-
-    // if user became admin while on this page (e.g. from another screen), redirect
-    if (auth.isAdmin && auth.access != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) context.go('/admin');
-      });
-    }
 
     return Scaffold(
       appBar: AppBar(title: const Text('Admin Sign In')),
@@ -118,8 +109,8 @@ class _AdminSignInPageState extends State<AdminSignInPage> {
                         prefixIcon: Icon(Icons.email),
                       ),
                       keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
                       validator: _validateEmail,
-                      onFieldSubmitted: (_) => _submit(),
                       enabled: !busy,
                     ),
                     const SizedBox(height: 12),
@@ -130,10 +121,11 @@ class _AdminSignInPageState extends State<AdminSignInPage> {
                         prefixIcon: Icon(Icons.lock),
                       ),
                       obscureText: true,
+                      textInputAction: TextInputAction.done,
+                      onFieldSubmitted: (_) => _submit(),
                       validator: (v) => (v == null || v.isEmpty)
                           ? 'Password is required'
                           : null,
-                      onFieldSubmitted: (_) => _submit(),
                       enabled: !busy,
                     ),
                     const SizedBox(height: 16),
@@ -148,9 +140,9 @@ class _AdminSignInPageState extends State<AdminSignInPage> {
                       ),
                     SizedBox(
                       width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: busy ? null : _submit,
-                        icon: busy
+                      child: FilledButton(
+                        onPressed: _submit, // 👈 single source of truth
+                        child: busy
                             ? const SizedBox(
                                 height: 18,
                                 width: 18,
@@ -158,8 +150,7 @@ class _AdminSignInPageState extends State<AdminSignInPage> {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.login),
-                        label: Text(busy ? 'Signing in...' : 'Sign In'),
+                            : const Text('Sign In'),
                       ),
                     ),
                   ],

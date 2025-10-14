@@ -1,65 +1,81 @@
 // lib/core/api/dio_client.dart
 import 'package:dio/dio.dart';
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import '../../features/auth/data/auth_repository.dart';
-import 'package:dio/browser.dart' as browser; // <-- for web cookies
 
 class DioClient {
   DioClient._();
   static final DioClient instance = DioClient._();
 
-  static final base = kIsWeb
-      ? 'http://localhost:8000/api/' // <- trailing slash ✅
-      : 'http://10.0.2.2:8000/api/'; // <- trailing slash ✅
+  /// Production server URL ကို အသုံးပြုရန် ပြင်ဆင်ထားသည်။
+  static String getBaseUrl() {
+    return 'http://localhost:8000/api/';
+  }
 
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: base,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 20),
+      baseUrl: getBaseUrl(),
+      connectTimeout: const Duration(
+        seconds: 30,
+      ), // ⬅️ Timeout ကို စက္ကန့် ၃၀ သို့ တိုးမြှင့်ထားသည်
+      receiveTimeout: const Duration(
+        seconds: 30,
+      ), // ⬅️ Timeout ကို စက္ကန့် ၃၀ သို့ တိုးမြှင့်ထားသည်
+      // 5xx ကိုပဲ Dio error ထုတ်မယ် (CORS preflight 204/3xx/4xx မပဲ)
       validateStatus: (s) => s != null && s < 500,
+      headers: {'Accept': 'application/json'},
+      followRedirects: true,
     ),
   );
 
-  Dio get client => _dio;
   Dio get dio => _dio;
 
   bool _setupDone = false;
 
   void setupInterceptors() {
     if (_setupDone) return;
-    client.interceptors.add(
+
+    // Hot restart နဲ့ duplicate interceptors မဖြစ်အောင်
+    _dio.interceptors.clear();
+
+    _dio.interceptors.add(
       InterceptorsWrapper(
-        onRequest: (options, handler) {
-          final p = Uri.tryParse(options.path)?.path ?? options.path;
-          final isAuth =
-              p.startsWith('/auth/') ||
-              p.startsWith('/token/') ||
-              p.startsWith('/accounts/');
-          if (!isAuth) {
-            final access = AuthRepository.instance.accessToken;
-            if (access?.isNotEmpty == true) {
-              options.headers['Authorization'] = 'Bearer $access';
+        onRequest: (options, handler) async {
+          try {
+            // ✅ အမြဲ Authorization header ထည့် (login/token route တွေကို ဒီနေရာက special-case မလို)
+            final t = AuthRepository.instance.accessToken;
+            if (t != null && t.isNotEmpty) {
+              options.headers['Authorization'] = 'Bearer $t';
             }
+            options.headers['Accept'] = 'application/json';
+
+            // ❗ IMPORTANT: baseUrl သုံးနေရင် path ကို leading slash မထားပါ
+            // e.g. 'live-sessions/' ✔,  '/live-sessions/' ✖ (baseUrl ရဲ့ '/api' ပြတ်သွားနိုင်)
+          } catch (e, st) {
+            debugPrint('⚠️ Dio onRequest inject error: $e\n$st');
           }
           return handler.next(options);
         },
-        onError: (e, h) => h.next(e),
+        onError: (e, handler) {
+          debugPrint(
+            '❌ Dio ${e.requestOptions.method} ${e.requestOptions.uri} -> ${e.response?.statusCode} (${e.message})',
+          );
+          return handler.next(e);
+        },
       ),
     );
-    _setupDone = true;
-  }
 
-  void clearTokens() {
-    _dio.options.headers.remove('Authorization');
-    // _dio.options.headers.remove('x-refresh-token'); // ရှိရင်ပဲ
+    _setupDone = true;
   }
 
   void setTokens({required String access, String? refresh}) {
     _dio.options.headers['Authorization'] = 'Bearer $access';
   }
 
-  void clearAuth() {
-    clearTokens();
+  void clearTokens() {
+    _dio.options.headers.remove('Authorization');
   }
+
+  void clearAuth() => clearTokens();
 }

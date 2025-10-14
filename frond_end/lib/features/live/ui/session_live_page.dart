@@ -1,188 +1,264 @@
-import 'dart:math';
+import 'dart:collection';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import '../../live/data/live_api.dart';
+
+import '../../auth/controllers/auth_controller.dart';
+import '../data/live_api.dart';
 
 class SessionLivePage extends StatefulWidget {
-  final int sessionId;
-  final bool
-  asHost; // true = Host (instructor/admin), false = Audience (student)
   const SessionLivePage({
     super.key,
     required this.sessionId,
     required this.asHost,
   });
 
+  final int sessionId;
+  final bool asHost;
+
   @override
   State<SessionLivePage> createState() => _SessionLivePageState();
 }
 
 class _SessionLivePageState extends State<SessionLivePage> {
-  late final RtcEngine _engine = createAgoraRtcEngine();
-  bool _ready = false, _joined = false, _joining = false;
-  final List<int> _remote = [];
-  final int _uid = Random().nextInt(1 << 31);
-  ClientRoleType get _role => widget.asHost
-      ? ClientRoleType.clientRoleBroadcaster
-      : ClientRoleType.clientRoleAudience;
+  late final RtcEngine _engine;
+
+  String _appId = '';
+  String _channel = '';
+  String _token = '';
+  int _uid = 0;
+
+  // RE-ADDED: Keep track of the user's role
+  bool _isHost = false;
+  bool _joined = false;
+
+  bool _micOn = true;
+  bool _camOn = true;
+  bool _speakerOn = true;
+
+  final Set<int> _remoteUids = LinkedHashSet();
+  bool _engineInited = false;
 
   @override
   void initState() {
     super.initState();
-    _init();
+    // Set the initial host status from the widget
+    _isHost = widget.asHost;
+    _engine = createAgoraRtcEngine();
+    _boot();
   }
 
   @override
   void dispose() {
-    _leave();
-    _engine.release();
+    () async {
+      await _engine.leaveChannel();
+      await _engine.release();
+    }();
     super.dispose();
   }
 
-  Future<void> _init() async {
-    await _engine.initialize(
-      RtcEngineContext(
-        appId: const String.fromEnvironment('AGORA_APP_ID'),
-        channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
-      ),
+  Future<void> _boot() async {
+    final t = await LiveApi.instance.token(
+      widget.sessionId,
+      asHost: widget.asHost,
     );
-    _engine.registerEventHandler(
-      RtcEngineEventHandler(
-        onJoinChannelSuccess: (_, __) => setState(() => _joined = true),
-        onLeaveChannel: (_, __) => setState(() {
-          _joined = false;
-          _remote.clear();
-        }),
-        onUserJoined: (_, uid, __) => setState(() => _remote.add(uid)),
-        onUserOffline: (_, uid, __) => setState(() => _remote.remove(uid)),
-      ),
+
+    _appId = t.appId;
+    _channel = t.channel;
+    _token = t.token;
+    _uid = t.uid;
+
+    await _initEngine();
+
+    await _engine.enableLocalVideo(_camOn);
+    if (_camOn) {
+      await _engine.startPreview();
+    }
+    await _engine.muteLocalAudioStream(!_micOn);
+    await _engine.muteLocalVideoStream(!_camOn);
+
+    await _engine.joinChannel(
+      token: _token,
+      channelId: _channel,
+      uid: _uid,
+      options: const ChannelMediaOptions(),
     );
-    await _engine.enableVideo();
-    setState(() => _ready = true);
-    _join();
   }
 
-  Future<void> _join() async {
-    if (_joining || !_ready) return;
-    setState(() => _joining = true);
-    try {
-      await LiveApi.instance.join(widget.sessionId);
-      final tok = await LiveApi.instance.token(
-        widget.sessionId,
-        asHost: widget.asHost,
-      );
+  Future<void> _initEngine() async {
+    if (_engineInited) return;
 
-      await _engine.setClientRole(role: _role);
-      if (widget.asHost) await _engine.startPreview();
+    await _engine.initialize(RtcEngineContext(appId: _appId));
+    await _engine.setParameters(r'{"rtc.log_filter": 65535}');
 
-      await _engine.joinChannel(
-        token: tok.token,
-        channelId: tok.channel,
-        uid: tok.uid, // server-provided
-        options: ChannelMediaOptions(
-          channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
-          clientRoleType: _role,
-          publishCameraTrack: widget.asHost,
-          publishMicrophoneTrack: widget.asHost,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _joining = false);
+    // Use Communication profile for Google Meet style functionality
+    await _engine.setChannelProfile(
+      ChannelProfileType.channelProfileCommunication,
+    );
+
+    await _engine.enableVideo();
+    await _engine.enableAudio();
+
+    await _engine.setVideoEncoderConfiguration(
+      const VideoEncoderConfiguration(
+        dimensions: VideoDimensions(width: 640, height: 360),
+        frameRate: 15,
+      ),
+    );
+
+    _engine.registerEventHandler(
+      RtcEngineEventHandler(
+        onError: (err, msg) => debugPrint('❌ error: $err, msg: $msg'),
+        onJoinChannelSuccess: (connection, elapsed) {
+          debugPrint(
+            '✔ joined ch=${connection.channelId} uid=${connection.localUid}',
+          );
+          if (mounted) setState(() => _joined = true);
+        },
+        onUserJoined: (connection, remoteUid, elapsed) {
+          debugPrint('👤 user joined $remoteUid');
+          if (mounted) setState(() => _remoteUids.add(remoteUid));
+        },
+        onUserOffline: (connection, remoteUid, reason) {
+          debugPrint('👤 user offline $remoteUid reason=${reason.name}');
+          if (mounted) setState(() => _remoteUids.remove(remoteUid));
+        },
+        onLeaveChannel: (connection, stats) {
+          if (!mounted) return;
+          setState(() {
+            _joined = false;
+            _remoteUids.clear();
+          });
+        },
+      ),
+    );
+    _engineInited = true;
+  }
+
+  // Simplified toggle functions for Communication mode
+  Future<void> _toggleCam() async {
+    setState(() => _camOn = !_camOn);
+    await _engine.muteLocalVideoStream(!_camOn);
+    // Also toggle the camera hardware to save battery
+    await _engine.enableLocalVideo(_camOn);
+    if (_camOn) {
+      await _engine.startPreview();
+    } else {
+      await _engine.stopPreview();
     }
   }
 
+  Future<void> _toggleMic() async {
+    setState(() => _micOn = !_micOn);
+    await _engine.muteLocalAudioStream(!_micOn);
+  }
+
+  Future<void> _toggleSpeaker() async {
+    setState(() => _speakerOn = !_speakerOn);
+    await _engine.adjustPlaybackSignalVolume(_speakerOn ? 100 : 0);
+  }
+
   Future<void> _leave() async {
-    try {
-      await _engine.leaveChannel();
-      await _engine.stopPreview();
-    } catch (_) {}
-    try {
-      await LiveApi.instance.leave(widget.sessionId);
-    } catch (_) {}
+    await _engine.leaveChannel();
+    // Use GoRouter's pop for better integration with the navigation stack.
+    if (mounted) context.pop();
+  }
+
+  Widget _buildVideoPanel(int uid) {
+    bool isLocal = uid == 0;
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.black38,
+      ),
+      child: isLocal
+          ? AgoraVideoView(
+              controller: VideoViewController(
+                rtcEngine: _engine,
+                canvas: const VideoCanvas(uid: 0),
+              ),
+            )
+          : AgoraVideoView(
+              controller: VideoViewController.remote(
+                rtcEngine: _engine,
+                canvas: VideoCanvas(uid: uid),
+                connection: RtcConnection(channelId: _channel),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildVideoArea() {
+    if (!_joined) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final List<Widget> videoPanels = [
+      _buildVideoPanel(0),
+    ]; // Start with the local user
+    for (final uid in _remoteUids) {
+      videoPanels.add(_buildVideoPanel(uid));
+    }
+
+    // Adaptive layout for better UX
+    if (videoPanels.length == 1) {
+      return Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: videoPanels.first,
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(4.0),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.75,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
+      ),
+      itemCount: videoPanels.length,
+      itemBuilder: (context, index) => videoPanels[index],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Text(
-                'Live Session #${widget.sessionId}',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: _joined ? null : _join,
-                icon: _joining
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.play_arrow),
-                label: Text(_joined ? 'Joined' : 'Join'),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: _joined ? _leave : null,
-                icon: const Icon(Icons.stop),
-                label: const Text('Leave'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(
-                  child: Card(
-                    elevation: 0,
-                    child: _joined && widget.asHost
-                        ? AgoraVideoView(
-                            controller: VideoViewController(
-                              rtcEngine: _engine,
-                              canvas: const VideoCanvas(uid: 0),
-                            ),
-                          )
-                        : Center(
-                            child: Text(
-                              _joined ? 'Audience Mode' : 'Not joined',
-                              style: TextStyle(color: cs.outline),
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Card(
-                    elevation: 0,
-                    child: _remote.isEmpty
-                        ? Center(
-                            child: Text(
-                              'Waiting for remote…',
-                              style: TextStyle(color: cs.outline),
-                            ),
-                          )
-                        : AgoraVideoView(
-                            controller: VideoViewController.remote(
-                              rtcEngine: _engine,
-                              connection: RtcConnection(
-                                channelId: '',
-                              ), // the engine tracks channel internally; can supply if needed
-                              canvas: VideoCanvas(uid: _remote.first),
-                            ),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+    // RE-ADDED: Display role in the AppBar title
+    final roleText = _isHost ? 'Host' : 'Audience';
+
+    final actions = <Widget>[
+      IconButton(
+        tooltip: _speakerOn ? 'Mute speakers' : 'Unmute speakers',
+        onPressed: _toggleSpeaker,
+        icon: Icon(_speakerOn ? Icons.volume_up : Icons.volume_off),
       ),
+      IconButton(
+        tooltip: _micOn ? 'Mute mic' : 'Unmute mic',
+        onPressed: _toggleMic,
+        icon: Icon(_micOn ? Icons.mic : Icons.mic_off),
+      ),
+      IconButton(
+        tooltip: _camOn ? 'Turn camera off' : 'Turn camera on',
+        onPressed: _toggleCam,
+        icon: Icon(_camOn ? Icons.videocam : Icons.videocam_off),
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: _leave,
+          icon: const Icon(Icons.call_end),
+          label: const Text('Leave'),
+        ),
+      ),
+    ];
+
+    return Scaffold(
+      appBar: AppBar(title: Text('Live Session ($roleText)'), actions: actions),
+      body: _buildVideoArea(),
+      backgroundColor: Colors.black87,
     );
   }
 }

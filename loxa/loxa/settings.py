@@ -1,23 +1,38 @@
 import os
-
 from pathlib import Path
 from datetime import timedelta
 from corsheaders.defaults import default_headers
 
+# --- Basic Django Setup ---
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "insecure")
-DEBUG = os.getenv("DJANGO_DEBUG", "0") == "1"
-# DEBUG = os.getenv("DEBUG","").lower() in ("1","true","yes")
-
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "insecure-development-key")
+DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+ROOT_URLCONF = 'loxa.urls'
+WSGI_APPLICATION = 'loxa.wsgi.application'
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I1N = True
+USE_TZ = True
 
-REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+SITE_ID = 1 # Required by django-allauth
+
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = False
+SECURE_PROXY_SSL_HEADER = None
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# --- Custom User Models ---
+AUTH_USER_MODEL = "accounts.User"
+AUTH_ORG_MODEL = "accounts.Organization"
 
 
-
-
-# Application definition
-
+# --- Application Definitions ---
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -25,51 +40,59 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
 
+    # Third Party Apps
     "rest_framework",
-    "django_filters",
-    "rest_framework_simplejwt.token_blacklist",
+    "rest_framework.authtoken", # ADDED TO FIX dj-rest-auth STARTUP ERROR
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "corsheaders",
+    "drf_yasg",
+    "django_filters",
+    "django_prometheus",
+    
+    # Social authentication
+    # 'social_django',
+    
+    # Allauth for social login
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
+    
+    # dj-rest-auth for API endpoints
+    'dj_rest_auth',
+    'dj_rest_auth.registration',
 
+    # Your Apps
     "api",
     "orgs",
     "accounts",
     "authphone",
-    "django_prometheus",
-
-    "social_django",
-    "corsheaders",
-
-    "drf_yasg",
 ]
 
+
+# --- Middleware Configuration ---
 MIDDLEWARE = [
-
     "django_prometheus.middleware.PrometheusBeforeMiddleware",
-
     'django.middleware.security.SecurityMiddleware',
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    "whitenoise.middleware.WhiteNoiseMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
-    
     "django_prometheus.middleware.PrometheusAfterMiddleware",
     "loxa.middleware.TenantResolver",
-
     "orgs.middleware.CurrentOrgMiddleware",
+    "allauth.account.middleware.AccountMiddleware", # Added for allauth
 ]
 
-# MIDDLEWARE.insert(0, "loxa.middleware.TenantResolver")
 
-
-
-
-ROOT_URLCONF = 'loxa.urls'
-
+# --- Template Configuration ---
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -85,139 +108,63 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'loxa.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
+# --- Database Configuration ---
 DATABASES = {
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.sqlite3',
-    #     'NAME': BASE_DIR / 'db.sqlite3',
-    # }
-
     "default": {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.getenv("POSTGRES_DB", "loxa_db"),
         "USER": os.getenv("POSTGRES_USER", "loxa_user"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "loxa@loxa"),
-        "HOST": os.getenv("POSTGRES_HOST", "localhost"),
+        "HOST": os.getenv("POSTGRES_HOST", "postgres"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
-        "OPTIONS": {"connect_timeout": 5},
     }
 }
 
 
-# Password validation
-# https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
+# --- Authentication Configuration ---
+AUTHENTICATION_BACKENDS = [
+    # Needed to login by username in Django admin, regardless of `allauth`
+    'django.contrib.auth.backends.ModelBackend',
+    # `allauth` specific authentication methods, such as login by e-mail
+    'allauth.account.auth_backends.AuthenticationBackend',
+    # Social auth backend
+    # 'social_core.backends.google.GoogleOAuth2',
+    # Custom phone backend
+    "authphone.backends.PhoneBackend",
+]
 
+# --- Password Validation ---
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
 
-# Internationalization
-# https://docs.djangoproject.com/en/5.2/topics/i18n/
-
-LANGUAGE_CODE = 'en-us'
-
-TIME_ZONE = 'UTC'
-
-USE_I18N = True
-
-USE_TZ = True
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.2/howto/static-files/
-
+# --- Static and Media Files ---
 STATIC_URL = "/static/"
-STATIC_ROOT = "/data/static"          # <- docker volume mount နဲ့တူရမယ်
-STATICFILES_DIRS = [
-    BASE_DIR / "static",              # project-level assets (optional)
-    BASE_DIR / "loxa" / "static",     # app-level assets (if you have)
-    # BASE_DIR / "api" / "static",      # app-level assets (if you have)
-]
-
-
-# Media (our own storage)
+STATIC_ROOT = "/data/static"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = "/data/media"
-
-# Small helper used by views to build safe paths
 STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
 }
 
 
-def build_media_path(*parts):
-    # prevent path traversal
-    safe = [str(p).replace("..", "").lstrip("/") for p in parts]
-    return os.path.join(MEDIA_ROOT, *safe)
-
-
-# Default primary key field type
-# https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-
-
-
-AUTH_USER_MODEL = "accounts.User"
-AUTH_ORG_MODEL = "accounts.Organization"
-
-
-
-
+# --- REST Framework and JWT Configuration ---
 REST_FRAMEWORK = {
-
-    "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer",
-        
-        *(("rest_framework.renderers.BrowsableAPIRenderer",) if DEBUG else ()),
-    ],
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.SessionAuthentication",
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": (
-        "rest_framework.permissions.IsAuthenticated",
-    ),
-    "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend",
-    ],
-    "DEFAULT_THROTTLE_CLASSES": (
-        "rest_framework.throttling.AnonRateThrottle",
-        "rest_framework.throttling.UserRateThrottle",
-        "rest_framework.throttling.ScopedRateThrottle",
-    ),
-    "DEFAULT_THROTTLE_RATES": {
-        "anon": "30/min",
-        "user": "120/min",
-        "session_join": "60/min",
-        "agora_token": "30/min",
-    },
-
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 20,
+    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
 }
-
-
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=14),
@@ -225,190 +172,147 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
+REST_AUTH = {
+    'USE_JWT': True,
+    'SIGNUP_FIELDS': {
+        'username': {'required': False},
+        'email': {'required': True},
+    },
+    'JWT_AUTH_HTTPONLY': False,
+    'SESSION_LOGIN': False, # Disable session login for API
+}
 
 
-USE_REDIS_CACHE = True
-if USE_REDIS_CACHE:
-    CACHES = {
-        "default": {
-            "BACKEND": "django_redis.cache.RedisCache",
-            "LOCATION": "redis://redis:6379/0",
-            "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
-            "KEY_PREFIX": "loxa",
-        }
-    }
+# --- django-allauth Configuration ---
+# Fixes the 'User has no field named username' error
+ACCOUNT_USER_MODEL_USERNAME_FIELD = None
+# ACCOUNT_USERNAME_REQUIRED = False
+ACCOUNT_LOGIN_METHODS = {'email'} 
+# ACCOUNT_EMAIL_REQUIRED = True
+ACCOUNT_EMAIL_VERIFICATION = 'none' # Set to 'mandatory' in production if desired
+
+ACCOUNT_SIGNUP_FIELDS = [
+    'email*', 
+    'password1',  # ပထမ password field
+    'password2',  # အတည်ပြုရန် password field
+    # 'first_name', # လိုအပ်ပါက ထည့်ပါ
+]
+
+# THIS IS THE FIX: Skip the confirmation page and go directly to Google
+SOCIALACCOUNT_LOGIN_ON_GET = True
+
+# Default redirect URL after successful login
+# 🛑 FIX: Login ပြီးနောက် Flutter dashboard သို့ redirect လုပ်ရန် URL ကို သတ်မှတ်ပါ။
+# LOGIN_REDIRECT_URL = 'https://lms.myanmarlink.online/student/dashboard'
+LOGIN_REDIRECT_URL = 'http://localhost:8000/api/'
+
+# Force HTTPS for OAuth redirects
+if not DEBUG:
+    ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https' # 🛑 FIX: Production အတွက် HTTPS ကို သုံးပါ။
+    SOCIALACCOUNT_QUERY_EMAIL = True
+# SOCIALACCOUNT_PROVIDERS = {
+#     'google': {
+#         'APP': {
+#             'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+#             'secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+#             'key': ''
+#         },
+#         'SCOPE': ['profile', 'email'],
+#         'AUTH_PARAMS': {'access_type': 'online'},
+#         'VERIFIED_EMAIL': True,
+#     }
+# }
+
+# Set the correct site URL for production
+if not DEBUG:
+    SITE_URL = "http://localhost:8000/"
+
+# Social Auth Configuration (for social-auth-app-django)
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv('GOOGLE_CLIENT_ID')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+SOCIAL_AUTH_GOOGLE_OAUTH2_SCOPE = ['openid', 'email', 'profile']
+SOCIAL_AUTH_GOOGLE_OAUTH2_EXTRA_DATA = ['username', 'first_name', 'last_name']
+
+
+# --- CORS Configuration ---
+if DEBUG:
+    CORS_ALLOW_ALL_ORIGINS = True # For development only
 else:
-    # Option B: Database cache (no extra dependency)
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.db.DatabaseCache",
-            "LOCATION": "loxa_cache_table",
-        }
+    # Production CORS settings
+    CORS_ALLOWED_ORIGINS = [
+        "https://lms.myanmarlink.online",
+        "https://lms.myanmarlink.online",
+        # Add your production domains here
+    ]
+CORS_ALLOW_CREDENTIALS = True
+
+# --- Production Security Settings ---
+if not DEBUG:
+    # Force HTTPS in production
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # Session security
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Always use HTTPS for OAuth redirects in production
+if not DEBUG:
+    USE_HTTPS = True
+else:
+    USE_HTTPS = False
+
+# --- Other Service Configurations (Redis, Celery, Agora, Sentry, etc.) ---
+REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": REDIS_URL,
+        "OPTIONS": {"CLIENT_CLASS": "django_redis.client.DefaultClient"},
     }
-
-
-# Channels / ASGI (optional)
+}
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("redis", 6379)],
-        },
+        "CONFIG": {"hosts": [REDIS_URL]},
     },
 }
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = CELERY_BROKER_URL
 
-# Celery (optional)
-CELERY_BROKER_URL = "redis://redis:6379/0"
-
-AUTHENTICATION_BACKENDS = (
-    "social_core.backends.google.GoogleOAuth2",   # add providers you need
-    "django.contrib.auth.backends.ModelBackend",
-)
-
-
-
-# OAuth client keys via env
-SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = os.getenv("GOOGLE_CLIENT_ID", "")
-SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
-SOCIAL_AUTH_REDIRECT_IS_HTTPS = False  # dev only
-SOCIAL_AUTH_LOGIN_REDIRECT_URL = "/"
-SOCIAL_AUTH_LOGIN_ERROR_URL = "/"
-
-# After social auth succeeds, we mint JWT:
-SOCIAL_AUTH_PIPELINE = (
-    "social_core.pipeline.social_auth.social_details",
-    "social_core.pipeline.social_auth.social_uid",
-    "social_core.pipeline.social_auth.auth_allowed",
-    "social_core.pipeline.social_auth.social_user",
-    "social_core.pipeline.user.get_username",
-    "social_core.pipeline.user.create_user",
-    "social_core.pipeline.social_auth.associate_user",
-    "social_core.pipeline.social_auth.load_extra_data",
-    "social_core.pipeline.user.user_details",
-)
-
-
-SWAGGER_SETTINGS = {
-    "USE_SESSION_AUTH": False,  # we'll use Bearer JWT
-    "SECURITY_DEFINITIONS": {
-        "Bearer": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header",
-            "description": 'Paste **Bearer &lt;your_JWT&gt;** here. Example: `Bearer eyJ0eXAiOiJK...`',
-        },
-    },
-}
-
-
-# if DEBUG:
-#     REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [
-#         "rest_framework.renderers.JSONRenderer",
-#         "rest_framework.renderers.BrowsableAPIRenderer",
-#     ]
-# else:
-#     REST_FRAMEWORK["DEFAULT_RENDERER_CLASSES"] = [
-#         "rest_framework.renderers.JSONRenderer",
-#     ]
-
-
-
-LOGIN_REDIRECT_URL = "api/"
-LOGOUT_REDIRECT_URL = "/"
-
-SESSION_ENGINE = "django.contrib.sessions.backends.db"
-
-# Cache ကို LocMem (redis မရှိလဲ OK)
-if DEBUG:
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-            "LOCATION": "loxa-dev-cache",
-        }
-    }
-
-
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "root": {"handlers": ["console"], "level": "INFO"},
-    "loggers": {
-        "django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False},
-        "django.security": {"handlers": ["console"], "level": "ERROR", "propagate": False},
-    },
-}
-
-AUTHENTICATION_BACKENDS = [
-    "django.contrib.auth.backends.ModelBackend",   # admin login အတွက် လိုတာ
-    "authphone.backends.PhoneBackend",
-]
-
-
+AGORA_APP_ID = os.getenv("AGORA_APP_ID", "ddf12d43c7f446aaaad63571b86f348d")
+AGORA_APP_CERT = os.getenv("AGORA_APP_CERT", "21509bc3f9eb4753857c83389329da24")
+AGORA_TOKEN_TTL_SEC = int(os.getenv("AGORA_TOKEN_TTL_SEC", "3600"))
 
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID", "")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN", "")
 TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER", "")
 
-OTP_EXP_MINUTES = int(os.getenv("OTP_EXP_MINUTES", "5"))
-OTP_RESEND_COOLDOWN_SEC = int(os.getenv("OTP_RESEND_COOLDOWN_SEC", "60"))
-OTP_MAX_PER_HOUR = int(os.getenv("OTP_MAX_PER_HOUR", "5"))
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+    )
 
 
 
 
-AGORA_APP_ID = os.getenv("AGORA_APP_ID", "b208ace79f984b2392645c9408edde36")
-AGORA_APP_CERT = os.getenv("AGORA_APP_CERT", "1a13e2c464c4fd2b98ad0154f01577a")
-AGORA_TOKEN_TTL_SEC = int(os.getenv("AGORA_TOKEN_TTL_SEC", "7200"))
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'mailhog'         # <--- Docker service name
+EMAIL_PORT = 1025              # <--- Mailhog ရဲ့ SMTP port
+EMAIL_HOST_USER = ''           # Mailhog မှာ မလိုပါ
+EMAIL_HOST_PASSWORD = ''       # Mailhog မှာ မလိုပါ
 
 
-
-import sentry_sdk
-from sentry_sdk.integrations.django import DjangoIntegration
-sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN","https://08d88d0c4292dce31c730ccdc44aadad@o4509988971610112.ingest.de.sentry.io/4509988973445200"),
-    integrations=[DjangoIntegration()],
-    traces_sample_rate=0.2,  # APM
-    send_default_pii=False,
-)
-
-
-CELERY_BROKER_URL = os.getenv("REDIS_URL","redis://redis:6379/0")
-CELERY_RESULT_BACKEND = CELERY_BROKER_URL
-
-
-import sentry_sdk
-
-sentry_sdk.init(
-    dsn="",
-    # Add data like request headers and IP for users,
-    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-    send_default_pii=True,
-)
-
-# settings.py (dev)
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",   # Vite
-#     "http://localhost:3000",   # React
-#     "http://localhost:38655",  # Flutter web dev server
-#     "http://127.0.0.1:33421",
-# ]
-
-
-from corsheaders.defaults import default_methods
-from corsheaders.defaults import default_headers
-CORS_ALLOW_METHODS = list(default_methods)
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    "accept", "accept-encoding", "authorization", "content-type",
-    "origin", "x-csrftoken", "x-org-id", "user-agent",
-]
-# OPTIONS (preflight) အဆင်ပြေစေဖို့
-CORS_ALLOW_METHODS = ["GET","POST","PUT","PATCH","DELETE","OPTIONS"]
-
-
-AGORA_APP_ID = os.getenv("AGORA_APP_ID", "ddf12d43c7f446aaaad63571b86f348d")
-AGORA_APP_CERT = os.getenv("AGORA_APP_CERT", "21509bc3f9eb4753857c83389329da24")
-AGORA_TOKEN_TTL_SEC = int(os.getenv("AGORA_TOKEN_TTL_SEC", "3600"))
+SOCIALACCOUNT_ADAPTER = 'accounts.adapter.CustomSocialAccountAdapter'

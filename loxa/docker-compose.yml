@@ -19,6 +19,8 @@ services:
       MEDIA_ROOT: /data/media
       AGORA_APP_ID: ${AGORA_APP_ID:-}
       AGORA_APP_CERT: ${AGORA_APP_CERT:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
       GUNICORN_CMD_ARGS: "--bind 0.0.0.0:8000"
     depends_on:

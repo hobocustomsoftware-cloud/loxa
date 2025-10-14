@@ -1,187 +1,90 @@
-// lib/features/live/ui/session_live_page.dart
-import 'package:flutter/foundation.dart';
+// lib/features/live/ui/live_session_page.dart
 import 'package:flutter/material.dart';
-import 'package:agora_rtc_engine/agora_rtc_engine.dart';
-import '../../../core/config/agora_config.dart';
-
+import 'package:go_router/go_router.dart';
 import '../data/live_api.dart';
 
-class SessionLivePage extends StatefulWidget {
-  const SessionLivePage({
-    super.key,
-    required this.sessionId,
-    required this.asHost,
-  });
-  final int sessionId;
-  final bool asHost;
-
+class LiveSessionPage extends StatefulWidget {
+  const LiveSessionPage({super.key});
   @override
-  State<SessionLivePage> createState() => _SessionLivePageState();
+  State<LiveSessionPage> createState() => _LiveSessionPageState();
 }
 
-class _SessionLivePageState extends State<SessionLivePage> {
-  late final RtcEngine _engine = createAgoraRtcEngine();
-
-  String _appId = '';
-  String _channel = '';
-  String _token = '';
-  int _uid = 0;
-
-  bool _booting = true;
-  String? _err;
-  bool _joined = false;
-  final _remoteUids = <int>{};
+class _LiveSessionPageState extends State<LiveSessionPage> {
+  late Future<List<Map<String, dynamic>>> _future;
 
   @override
   void initState() {
     super.initState();
-    _boot();
+    _future = LiveApi.instance.listSessions(mine: true);
   }
 
-  @override
-  void dispose() {
-    _engine.leaveChannel();
-    _engine.release();
-    super.dispose();
-  }
-
-  Future<void> _boot() async {
-    try {
-      // (A) backend → token/app_id/channel/uid
-      final t = await LiveApi.instance.token(
-        widget.sessionId,
-        asHost: widget.asHost,
-      );
-
-      // (B) prefer server app_id; otherwise use --dart-define=AGORA_APP_ID
-      final appId = resolveAppId(fromServer: t.appId);
-      if (appId.isEmpty) {
-        throw StateError(
-          'Agora App ID is missing (server app_id empty, and no --dart-define).',
-        );
-      }
-
-      _appId = appId;
-      _channel = t.channel;
-      _token = t.token; // may be ''
-      _uid = t.uid;
-
-      await _initEngine(); // only now, after we have _appId
-      await _join();
-
-      if (mounted) setState(() => _booting = false);
-    } catch (e, st) {
-      debugPrint('boot error: $e\n$st');
-      if (mounted)
-        setState(() {
-          _err = e.toString();
-          _booting = false;
-        });
-    }
-  }
-
-  Future<void> _initEngine() async {
-    await _engine.initialize(
-      RtcEngineContext(
-        appId: _appId,
-        channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
-      ),
-    );
-
-    await _engine.enableVideo();
-
-    // Broadcaster မဟုတ်ရင် preview မစရ
-    if (widget.asHost) {
-      await _engine.startPreview();
-    }
-
-    _engine.registerEventHandler(
-      RtcEngineEventHandler(
-        // v6: (RtcConnection connection, int elapsed)
-        onJoinChannelSuccess: (RtcConnection connection, int elapsed) {
-          if (!mounted) return;
-          setState(() => _joined = true);
-        },
-
-        // v6: (RtcConnection connection, int remoteUid, int elapsed)
-        onUserJoined: (RtcConnection connection, int remoteUid, int elapsed) {
-          if (!mounted) return;
-          setState(() => _remoteUids.add(remoteUid));
-        },
-
-        // v6: (RtcConnection connection, int remoteUid, UserOfflineReasonType reason)
-        onUserOffline:
-            (
-              RtcConnection connection,
-              int remoteUid,
-              UserOfflineReasonType reason,
-            ) {
-              if (!mounted) return;
-              setState(() => _remoteUids.remove(remoteUid));
-            },
-
-        // v6: (RtcConnection connection, RtcStats stats)
-        onLeaveChannel: (RtcConnection connection, RtcStats stats) {
-          if (!mounted) return;
-          setState(() => _joined = false);
-        },
-      ),
-    );
-
-    await _engine.setClientRole(
-      role: widget.asHost
-          ? ClientRoleType.clientRoleBroadcaster
-          : ClientRoleType.clientRoleAudience,
-    );
-  }
-
-  Future<void> _join() async {
-    await _engine.joinChannel(
-      token: _token,
-      channelId: _channel,
-      uid: _uid,
-      options: ChannelMediaOptions(
-        channelProfile: ChannelProfileType.channelProfileLiveBroadcasting,
-        clientRoleType: widget.asHost
-            ? ClientRoleType.clientRoleBroadcaster
-            : ClientRoleType.clientRoleAudience,
-        publishMicrophoneTrack: widget.asHost,
-        publishCameraTrack: widget.asHost,
-      ),
-    );
+  Future<void> _reload() async {
+    setState(() => _future = LiveApi.instance.listSessions(mine: true));
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_booting) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_err != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 40),
-            const SizedBox(height: 8),
-            Text(_err!, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  _err = null;
-                  _booting = true;
-                });
-                _boot();
-              },
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ],
-        ),
-      );
-    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Live Sessions (Agora)')),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            // 401/403 အတွက် UX သေချာ
+            return Center(child: Text('Load failed: ${snap.error}'));
+          }
+          final items = snap.data ?? const [];
+          if (items.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: _reload,
+              child: ListView(
+                children: const [
+                  SizedBox(height: 120),
+                  Center(child: Text('No sessions yet')),
+                  SizedBox(height: 600),
+                ],
+              ),
+            );
+          }
 
-    // … UI for local/remote video views …
-    return const Text('Live joined'); // replace with your video widgets
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final s = items[i];
+                final id = s['id'];
+                final title = (s['title'] ?? 'Untitled').toString();
+                final start = (s['start_time'] ?? '').toString();
+                return ListTile(
+                  title: Text(title),
+                  subtitle: Text(start),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton(
+                        onPressed: () =>
+                            context.go('/live/session/$id?role=audience'),
+                        child: const Text('Join'),
+                      ),
+                      const SizedBox(width: 6),
+                      FilledButton(
+                        onPressed: () =>
+                            context.go('/live/session/$id?role=host'),
+                        child: const Text('Host'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
   }
 }

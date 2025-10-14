@@ -6,6 +6,8 @@ from django.contrib.auth.models import (
 )
 from django.conf import settings
 
+from allauth.socialaccount.adapter import DefaultSocialAccountAdapter # type: ignore
+
 # ==== NEW: Role model (global roles only) =====================
 class Role(models.Model):
     """
@@ -176,3 +178,7 @@ if not hasattr(User, "has_org_role"):
     User.add_to_class("has_org_role", _user_has_org_role)
 if not hasattr(User, "org_role"):
     User.add_to_class("org_role", _user_org_role)
+
+
+
+

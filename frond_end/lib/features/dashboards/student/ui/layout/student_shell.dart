@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../../../auth/controllers/auth_controller.dart';
 
 class StudentShell extends StatelessWidget {
   final Widget child;
@@ -42,6 +44,22 @@ class StudentShell extends StatelessWidget {
                   onTap: () => context.go('/student/live'),
                 ),
                 const Spacer(),
+                const Divider(
+                  color: Colors.white24,
+                  height: 24,
+                  indent: 12,
+                  endIndent: 12,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.white),
+                  title: const Text(
+                    'Logout',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  onTap: () async {
+                    await context.read<AuthController>().logout();
+                  },
+                ),
               ],
             ),
           ),

@@ -1,59 +1,60 @@
 // lib/features/auth/models/me.dart
+
 class Me {
   final int id;
   final String email;
-  final String? username;
-  final String? displayName;
-  final String? firstName;
-  final String? lastName;
-  final bool isSuperuser;
+  final bool isAdmin;
+  final bool isModerator;
+  final bool isEditor;
   final bool isStaff;
-  final bool isAdmin; // ← server or computed admin
+  final bool isSuperuser;
   final List<String> roles;
 
-  const Me({
+  Me({
     required this.id,
     required this.email,
-    this.username,
-    this.displayName,
-    this.firstName,
-    this.lastName,
-    this.isSuperuser = false,
-    this.isStaff = false,
     required this.isAdmin,
+    required this.isModerator,
+    required this.isEditor,
+    required this.isStaff,
+    required this.isSuperuser,
     required this.roles,
   });
 
   factory Me.fromJson(Map<String, dynamic> j) {
-    bool b(v) => v == true || v == 1 || v == 'true' || v == 'True';
+    // 1. ID Fix (ယခင်က ပြင်ခဲ့သည့်အတိုင်း)
+    final int id = (j['id'] as num?)?.toInt() ?? 0;
 
-    final roles =
-        (j['roles'] as List?)?.map((e) => e.toString()).toList() ??
-        const <String>[];
+    // 2. Boolean Fix (JSON ထဲက တန်ဖိုးကို null မဟုတ်ကြောင်း စစ်ဆေးပြီးမှ cast လုပ်ပါ)
+    // Backend က တန်ဖိုးကို bool မဟုတ်ဘဲ 0/1 (num) နဲ့ ပို့နိုင်တဲ့အတွက် ပိုမိုလုံခြုံအောင် ညှိရပါမယ်။
 
-    final staff = b(j['isStaff'] ?? j['is_staff']);
-    final superuser = b(j['isSuperuser'] ?? j['is_superuser']);
-    final apiAdmin = b(j['isAdmin'] ?? j['is_admin']);
-
-    final admin =
-        apiAdmin ||
-        staff ||
-        superuser ||
-        roles.contains('admin') ||
-        roles.contains('super_admin');
+    bool safeBool(dynamic value) {
+      if (value == true || value == 1) return true;
+      return false;
+    }
 
     return Me(
-      id: (j['id'] as num).toInt(),
-      email: (j['email'] as String?) ?? '',
-      isStaff: staff,
-      isSuperuser: superuser,
-      isAdmin: admin,
-      roles: roles,
+      id: id,
+      email: (j['email'] ?? '') as String,
+
+      // 🚨 FIX: Boolean Fields အားလုံးကို safeBool function ဖြင့် စစ်ဆေးခြင်း
+      isAdmin: safeBool(j['isAdmin'] ?? j['is_admin']),
+      isModerator: safeBool(j['isModerator'] ?? j['is_moderator']),
+      isEditor: safeBool(j['isEditor'] ?? j['is_editor']),
+      isStaff: safeBool(j['isStaff'] ?? j['is_staff']),
+      isSuperuser: safeBool(j['isSuperuser'] ?? j['is_superuser']),
+
+      roles: (j['roles'] as List?)?.cast<String>() ?? const [],
     );
   }
 
-  // ---- role helpers (frontend အတွက်သုံးမယ့် sugar) ----
-  bool hasRole(String r) => roles.contains(r);
-  bool hasAny(Iterable<String> rs) => rs.any(roles.contains);
-  bool hasAll(Iterable<String> rs) => rs.every(roles.contains);
+  bool safeBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) return value > 0; // 1 ကို true အဖြစ် ယူဆ
+    return false;
+  }
+
+  bool get isStudent => roles.contains('student');
+  bool get isTeacher => roles.contains('teacher');
+  bool get isParent => roles.contains('parent');
 }

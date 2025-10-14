@@ -46,4 +46,4 @@ class Attendance(models.Model):
 
 
 
-from .models_academics import Course, Module, Lesson, LessonAsset 
+from .models_academics import Course, Module, Lesson, LessonAsset

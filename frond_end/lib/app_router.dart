@@ -1,5 +1,7 @@
 // app_router.dart (fixed)
 
+import 'package:flutter/rendering.dart';
+import 'package:frond_end/features/auth/ui/signin_page.dart';
 import 'package:frond_end/features/courses/ui/courses_page.dart';
 import 'package:frond_end/features/dashboards/admin/ui/pages/course_detail_page.dart';
 import 'package:frond_end/features/dashboards/student/ui/pages/student_dashboard.dart';
@@ -51,6 +53,12 @@ GoRouter buildRouter(AuthController auth) => GoRouter(
     final onStudent = path.startsWith('/student');
     final onLive = path.startsWith('/live'); // ✅ live room guard (optional)
     final loggingIn = path == '/admin/signin';
+
+    // ✅ ADDED: Auto-redirect after login from home page
+    if (auth.isLoggedIn && path == '/') {
+      if (auth.isStudent) return '/student/dashboard';
+      if (auth.isAdmin) return '/admin/dashboard';
+    }
 
     final loggedIn = auth.isLoggedIn;
     final admin = auth.isAdmin;
@@ -171,9 +179,16 @@ GoRouter buildRouter(AuthController auth) => GoRouter(
       name: 'live_session',
       builder: (_, state) {
         final id = int.parse(state.pathParameters['id']!);
-        final asHost = (state.uri.queryParameters['role'] == 'host');
+        final roleParam = state.uri.queryParameters['role'];
+        final asHost = (roleParam == 'host');
+        debugPrint('LIVE route -> id=$id asHost=$asHost'); // ✅ confirm
         return SessionLivePage(sessionId: id, asHost: asHost);
       },
+    ),
+    GoRoute(
+      path: '/google-signin',
+      name: 'google_signin', // Optional name
+      builder: (_, __) => const GoogleSignInScreen(),
     ),
   ],
 );
