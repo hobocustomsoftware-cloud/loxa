@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # If you use requirements.txt
-COPY requirements.txt ./
+# COPY requirements.txt ./
+COPY loxa/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Or if you use pyproject.toml (Poetry), copy & install instead.
@@ -20,7 +21,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 #     && poetry install --no-interaction --no-ansi
 
 # Copy project
-COPY . .
+# COPY . .
+COPY loxa/ .
 
 EXPOSE 8000
 
