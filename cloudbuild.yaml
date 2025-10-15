@@ -1,0 +1,30 @@
+steps:
+# Step 1: Build the container image using the specified Dockerfile.
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t',
+    'gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA',
+    '-f',
+    'loxa/deploy/Dockerfile', # <--- သင့်ရဲ့ Dockerfile path
+    '.' # <--- Build context ကို repository root အဖြစ် သတ်မှတ်ခြင်း။
+  ]
+# Step 2: Push the container image to Artifact Registry/Container Registry.
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA']
+# Step 3: Deploy the image to Cloud Run.
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+  args: [
+    'run',
+    'deploy',
+    'YOUR_SERVICE_NAME', # <--- သင့် Cloud Run Service နာမည်ကို ထည့်ပါ
+    '--image',
+    'gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA',
+    '--region',
+    'YOUR_REGION', # <--- သင့် Region (ဥပမာ: asia-southeast1) ကို ထည့်ပါ
+    '--platform',
+    'managed',
+    '--allow-unauthenticated' # လိုအပ်ရင် ထည့်ပါ
+  ]
+images:
+- 'gcr.io/$PROJECT_ID/$REPO_NAME:$COMMIT_SHA'
