@@ -1,0 +1,30 @@
+# Use official Python slim base image
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /app
+
+# Use Singapore Debian mirrors for better connectivity in Myanmar
+RUN echo "deb http://mirror.sg.debian.org/debian bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list && \
+    echo "deb http://mirror.sg.debian.org/debian bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb http://mirror.sg.debian.org/debian-security bookworm-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends build-essential libpq-dev curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of your Django app
+COPY . .
+
+# Ensure entrypoint script is executable
+RUN chmod +x /app/deploy/entrypoint.web.sh
+
+# Run the Django web service
+ENTRYPOINT ["/app/deploy/entrypoint.web.sh"]
