@@ -1,0 +1,1434 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Loxa API",
+    "description": "Online live classroom API (sessions, courses, lessons, assets, auth, etc.)",
+    "termsOfService": "https://example.com/terms/",
+    "contact": {
+      "email": "support@loxa.local"
+    },
+    "license": {
+      "name": "Proprietary"
+    },
+    "version": "v1"
+  },
+  "host": "localhost",
+  "schemes": [
+    "http"
+  ],
+  "basePath": "/api",
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "Authorization",
+      "in": "header",
+      "description": "Paste **Bearer &lt;your_JWT&gt;** here. Example: `Bearer eyJ0eXAiOiJK...`"
+    }
+  },
+  "security": [
+    {
+      "Bearer": []
+    }
+  ],
+  "paths": {
+    "/assets/": {
+      "get": {
+        "operationId": "assets_list",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/LessonAsset"
+              }
+            }
+          }
+        },
+        "tags": [
+          "assets"
+        ]
+      },
+      "post": {
+        "operationId": "assets_create",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        },
+        "tags": [
+          "assets"
+        ]
+      },
+      "parameters": []
+    },
+    "/assets/{id}/": {
+      "get": {
+        "operationId": "assets_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        },
+        "tags": [
+          "assets"
+        ]
+      },
+      "put": {
+        "operationId": "assets_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        },
+        "tags": [
+          "assets"
+        ]
+      },
+      "patch": {
+        "operationId": "assets_partial_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonAsset"
+            }
+          }
+        },
+        "tags": [
+          "assets"
+        ]
+      },
+      "delete": {
+        "operationId": "assets_delete",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "assets"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "A unique integer value identifying this lesson asset.",
+          "required": true,
+          "type": "integer"
+        }
+      ]
+    },
+    "/attendance/": {
+      "get": {
+        "operationId": "attendance_list",
+        "description": "",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "org",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "session",
+            "in": "query",
+            "description": "session",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "description": "user",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "description": "Which field to use when ordering the results.",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "A search term.",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AttendanceSer"
+              }
+            }
+          }
+        },
+        "tags": [
+          "attendance"
+        ]
+      },
+      "post": {
+        "operationId": "attendance_create",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        },
+        "tags": [
+          "attendance"
+        ]
+      },
+      "parameters": []
+    },
+    "/attendance/{id}/": {
+      "get": {
+        "operationId": "attendance_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        },
+        "tags": [
+          "attendance"
+        ]
+      },
+      "put": {
+        "operationId": "attendance_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        },
+        "tags": [
+          "attendance"
+        ]
+      },
+      "patch": {
+        "operationId": "attendance_partial_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/AttendanceSer"
+            }
+          }
+        },
+        "tags": [
+          "attendance"
+        ]
+      },
+      "delete": {
+        "operationId": "attendance_delete",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "attendance"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "A unique integer value identifying this attendance.",
+          "required": true,
+          "type": "integer"
+        }
+      ]
+    },
+    "/courses/": {
+      "get": {
+        "operationId": "courses_list",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/CourseSer"
+              }
+            }
+          }
+        },
+        "tags": [
+          "courses"
+        ]
+      },
+      "post": {
+        "operationId": "courses_create",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        },
+        "tags": [
+          "courses"
+        ]
+      },
+      "parameters": []
+    },
+    "/courses/{id}/": {
+      "get": {
+        "operationId": "courses_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        },
+        "tags": [
+          "courses"
+        ]
+      },
+      "put": {
+        "operationId": "courses_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        },
+        "tags": [
+          "courses"
+        ]
+      },
+      "patch": {
+        "operationId": "courses_partial_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/CourseSer"
+            }
+          }
+        },
+        "tags": [
+          "courses"
+        ]
+      },
+      "delete": {
+        "operationId": "courses_delete",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "courses"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "type": "string"
+        }
+      ]
+    },
+    "/lessons/": {
+      "get": {
+        "operationId": "lessons_list",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/LessonSer"
+              }
+            }
+          }
+        },
+        "tags": [
+          "lessons"
+        ]
+      },
+      "post": {
+        "operationId": "lessons_create",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        },
+        "tags": [
+          "lessons"
+        ]
+      },
+      "parameters": []
+    },
+    "/lessons/{id}/": {
+      "get": {
+        "operationId": "lessons_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        },
+        "tags": [
+          "lessons"
+        ]
+      },
+      "put": {
+        "operationId": "lessons_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        },
+        "tags": [
+          "lessons"
+        ]
+      },
+      "patch": {
+        "operationId": "lessons_partial_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/LessonSer"
+            }
+          }
+        },
+        "tags": [
+          "lessons"
+        ]
+      },
+      "delete": {
+        "operationId": "lessons_delete",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "lessons"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "type": "string"
+        }
+      ]
+    },
+    "/modules/": {
+      "get": {
+        "operationId": "modules_list",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/ModuleSer"
+              }
+            }
+          }
+        },
+        "tags": [
+          "modules"
+        ]
+      },
+      "post": {
+        "operationId": "modules_create",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        },
+        "tags": [
+          "modules"
+        ]
+      },
+      "parameters": []
+    },
+    "/modules/{id}/": {
+      "get": {
+        "operationId": "modules_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        },
+        "tags": [
+          "modules"
+        ]
+      },
+      "put": {
+        "operationId": "modules_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        },
+        "tags": [
+          "modules"
+        ]
+      },
+      "patch": {
+        "operationId": "modules_partial_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/ModuleSer"
+            }
+          }
+        },
+        "tags": [
+          "modules"
+        ]
+      },
+      "delete": {
+        "operationId": "modules_delete",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "modules"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "type": "string"
+        }
+      ]
+    },
+    "/seats/": {
+      "get": {
+        "operationId": "seats_list",
+        "description": "",
+        "parameters": [
+          {
+            "name": "org",
+            "in": "query",
+            "description": "org",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "session",
+            "in": "query",
+            "description": "session",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "user",
+            "in": "query",
+            "description": "user",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "description": "state",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "PENDING",
+              "CONFIRMED",
+              "RELEASED"
+            ]
+          },
+          {
+            "name": "ordering",
+            "in": "query",
+            "description": "Which field to use when ordering the results.",
+            "required": false,
+            "type": "string"
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "description": "A search term.",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SeatReservationSer"
+              }
+            }
+          }
+        },
+        "tags": [
+          "seats"
+        ]
+      },
+      "post": {
+        "operationId": "seats_create",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        },
+        "tags": [
+          "seats"
+        ]
+      },
+      "parameters": []
+    },
+    "/seats/{id}/": {
+      "get": {
+        "operationId": "seats_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        },
+        "tags": [
+          "seats"
+        ]
+      },
+      "put": {
+        "operationId": "seats_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        },
+        "tags": [
+          "seats"
+        ]
+      },
+      "patch": {
+        "operationId": "seats_partial_update",
+        "description": "",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/SeatReservationSer"
+            }
+          }
+        },
+        "tags": [
+          "seats"
+        ]
+      },
+      "delete": {
+        "operationId": "seats_delete",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "seats"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "A unique integer value identifying this seat reservation.",
+          "required": true,
+          "type": "integer"
+        }
+      ]
+    },
+    "/sessions/": {
+      "get": {
+        "operationId": "sessions_list",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "sessions"
+        ]
+      },
+      "parameters": []
+    },
+    "/sessions/{id}/": {
+      "get": {
+        "operationId": "sessions_read",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "sessions"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "A unique integer value identifying this live session.",
+          "required": true,
+          "type": "integer"
+        }
+      ]
+    },
+    "/sessions/{id}/join/": {
+      "post": {
+        "operationId": "sessions_join",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "sessions"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "A unique integer value identifying this live session.",
+          "required": true,
+          "type": "integer"
+        }
+      ]
+    },
+    "/sessions/{id}/leave/": {
+      "post": {
+        "operationId": "sessions_leave",
+        "description": "",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "sessions"
+        ]
+      },
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "description": "A unique integer value identifying this live session.",
+          "required": true,
+          "type": "integer"
+        }
+      ]
+    },
+    "/token/": {
+      "post": {
+        "operationId": "token_create",
+        "description": "Takes a set of user credentials and returns an access and refresh JSON web\ntoken pair to prove the authentication of those credentials.",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TokenObtainPair"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/TokenObtainPair"
+            }
+          }
+        },
+        "tags": [
+          "token"
+        ]
+      },
+      "parameters": []
+    },
+    "/token/refresh/": {
+      "post": {
+        "operationId": "token_refresh_create",
+        "description": "Takes a refresh type JSON web token and returns an access type JSON web\ntoken if the refresh token is valid.",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TokenRefresh"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/TokenRefresh"
+            }
+          }
+        },
+        "tags": [
+          "token"
+        ]
+      },
+      "parameters": []
+    },
+    "/token/verify/": {
+      "post": {
+        "operationId": "token_verify_create",
+        "description": "Takes a token and indicates if it is valid.  This view provides no\ninformation about a token's fitness for a particular use.",
+        "parameters": [
+          {
+            "name": "data",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/TokenVerify"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/TokenVerify"
+            }
+          }
+        },
+        "tags": [
+          "token"
+        ]
+      },
+      "parameters": []
+    }
+  },
+  "definitions": {
+    "LessonAsset": {
+      "required": [
+        "type",
+        "lesson"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "ID",
+          "type": "integer",
+          "readOnly": true
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "enum": [
+            "PDF",
+            "VIDEO",
+            "RECORDING"
+          ]
+        },
+        "file": {
+          "title": "File",
+          "type": "string",
+          "readOnly": true,
+          "x-nullable": true,
+          "format": "uri"
+        },
+        "storage_key": {
+          "title": "Storage key",
+          "type": "string",
+          "maxLength": 500
+        },
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "duration_seconds": {
+          "title": "Duration seconds",
+          "type": "integer",
+          "readOnly": true
+        },
+        "size_bytes": {
+          "title": "Size bytes",
+          "type": "integer",
+          "readOnly": true
+        },
+        "created_at": {
+          "title": "Created at",
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "org": {
+          "title": "Org",
+          "type": "integer",
+          "readOnly": true
+        },
+        "lesson": {
+          "title": "Lesson",
+          "type": "integer"
+        }
+      }
+    },
+    "AttendanceSer": {
+      "required": [
+        "session",
+        "user"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "ID",
+          "type": "integer",
+          "readOnly": true
+        },
+        "joined_at": {
+          "title": "Joined at",
+          "type": "string",
+          "format": "date-time"
+        },
+        "left_at": {
+          "title": "Left at",
+          "type": "string",
+          "format": "date-time",
+          "x-nullable": true
+        },
+        "total_seconds": {
+          "title": "Total seconds",
+          "type": "integer",
+          "maximum": 2147483647,
+          "minimum": 0
+        },
+        "org": {
+          "title": "Org",
+          "type": "integer",
+          "x-nullable": true
+        },
+        "session": {
+          "title": "Session",
+          "type": "integer"
+        },
+        "user": {
+          "title": "User",
+          "type": "integer"
+        }
+      }
+    },
+    "CourseSer": {
+      "required": [
+        "title",
+        "code",
+        "level"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "ID",
+          "type": "integer",
+          "readOnly": true
+        },
+        "title": {
+          "title": "Title",
+          "type": "string",
+          "maxLength": 255,
+          "minLength": 1
+        },
+        "code": {
+          "title": "Code",
+          "type": "string",
+          "maxLength": 50
+        },
+        "paper_no": {
+          "title": "Paper no",
+          "type": "string",
+          "maxLength": 20
+        },
+        "level": {
+          "title": "Level",
+          "type": "integer"
+        },
+        "owner": {
+          "title": "Owner",
+          "type": "integer",
+          "x-nullable": true
+        }
+      }
+    },
+    "LessonSer": {
+      "required": [
+        "title",
+        "module"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "ID",
+          "type": "integer",
+          "readOnly": true
+        },
+        "title": {
+          "title": "Title",
+          "type": "string",
+          "maxLength": 255,
+          "minLength": 1
+        },
+        "order": {
+          "title": "Order",
+          "type": "integer",
+          "maximum": 2147483647,
+          "minimum": 0
+        },
+        "published": {
+          "title": "Published",
+          "type": "boolean"
+        },
+        "module": {
+          "title": "Module",
+          "type": "integer"
+        },
+        "live_session": {
+          "title": "Live session",
+          "type": "integer",
+          "x-nullable": true
+        }
+      }
+    },
+    "ModuleSer": {
+      "required": [
+        "title",
+        "course"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "ID",
+          "type": "integer",
+          "readOnly": true
+        },
+        "title": {
+          "title": "Title",
+          "type": "string",
+          "maxLength": 255,
+          "minLength": 1
+        },
+        "order": {
+          "title": "Order",
+          "type": "integer",
+          "maximum": 2147483647,
+          "minimum": 0
+        },
+        "course": {
+          "title": "Course",
+          "type": "integer"
+        }
+      }
+    },
+    "SeatReservationSer": {
+      "required": [
+        "session",
+        "user"
+      ],
+      "type": "object",
+      "properties": {
+        "id": {
+          "title": "ID",
+          "type": "integer",
+          "readOnly": true
+        },
+        "state": {
+          "title": "State",
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "CONFIRMED",
+            "RELEASED"
+          ]
+        },
+        "expires_at": {
+          "title": "Expires at",
+          "type": "string",
+          "format": "date-time",
+          "x-nullable": true
+        },
+        "created_at": {
+          "title": "Created at",
+          "type": "string",
+          "format": "date-time",
+          "readOnly": true
+        },
+        "org": {
+          "title": "Org",
+          "type": "integer",
+          "x-nullable": true
+        },
+        "session": {
+          "title": "Session",
+          "type": "integer"
+        },
+        "user": {
+          "title": "User",
+          "type": "integer"
+        }
+      }
+    },
+    "TokenObtainPair": {
+      "required": [
+        "username",
+        "password"
+      ],
+      "type": "object",
+      "properties": {
+        "username": {
+          "title": "Username",
+          "type": "string",
+          "minLength": 1
+        },
+        "password": {
+          "title": "Password",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "TokenRefresh": {
+      "required": [
+        "refresh"
+      ],
+      "type": "object",
+      "properties": {
+        "refresh": {
+          "title": "Refresh",
+          "type": "string",
+          "minLength": 1
+        },
+        "access": {
+          "title": "Access",
+          "type": "string",
+          "readOnly": true,
+          "minLength": 1
+        }
+      }
+    },
+    "TokenVerify": {
+      "required": [
+        "token"
+      ],
+      "type": "object",
+      "properties": {
+        "token": {
+          "title": "Token",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}
