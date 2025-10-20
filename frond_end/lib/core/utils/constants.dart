@@ -4,7 +4,8 @@ class Constants {
   // Device on LAN → http://<your-ip>:8000
   static const apiBase = String.fromEnvironment(
     'API_BASE',
-    defaultValue: 'http://localhost:8000/api',
+    // defaultValue: 'http://localhost:8000/api',
+    defaultValue: 'https://lms.ai1.com.mm/api',
   );
 
   static const courses = '/courses/';
