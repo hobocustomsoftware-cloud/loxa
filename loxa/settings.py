@@ -256,3 +256,31 @@ SWAGGER_SETTINGS = {
         },
     },
 }
+
+# SSL/HTTPS Configuration for Cloudflare Flexible SSL
+# When using Cloudflare SSL Flexible mode, HTTP requests reach Django with X-Forwarded-Proto header
+if os.getenv("DJANGO_SECURE_SSL_REDIRECT", "").lower() in ("1", "true", "yes"):
+    SECURE_SSL_REDIRECT = True
+else:
+    # Don't force HTTPS redirect since Cloudflare handles SSL termination
+    SECURE_SSL_REDIRECT = False
+
+# Django should trust the X-Forwarded-Proto header from Cloudflare
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# CORS settings for Cloudflare flexible SSL
+CORS_ALLOW_ALL_ORIGINS = True  # For development; set specific origins in production
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-forwarded-proto',
+    'x-forwarded-for',
+]

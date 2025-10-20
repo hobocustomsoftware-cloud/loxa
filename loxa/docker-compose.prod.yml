@@ -42,13 +42,10 @@ services:
       - web
     ports:
       - "80:80"
-      - "443:443"  # Add HTTPS port
     volumes:
       - ./deploy/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - loxa_media:/data/media:ro
       - loxa_static:/data/static:ro
-      # Add SSL certificate volumes
-      - ./ssl:/etc/nginx/ssl:ro
 
   redis:
     image: redis:7
