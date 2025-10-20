@@ -15,8 +15,6 @@ x-app-env: &app_env
   MEDIA_ROOT: /data/media
 
 services:
-
-  
   web:
     build:
       context: .
@@ -46,7 +44,6 @@ services:
         limits:
           cpus: "1.0"
           memory: 1024M
-
   nginx:
       image: nginx:1.27
       depends_on:
