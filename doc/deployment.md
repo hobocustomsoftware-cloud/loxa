@@ -16,6 +16,11 @@ sudo docker-compose -f docker-compose.yml up -d
 ## Creating superuser
 
 ```bash
+
+docker compose exec web python manage.py migrate
+
+
+
 docker compose exec web bash -lc 'DJANGO_SUPERUSER_USERNAME=admin DJANGO_SUPERUSER_EMAIL=admin@example.com DJANGO_SUPERUSER_PASSWORD=Admin@123 python manage.py createsuperuser --noinput --username admin --email admin@example.com' 
 ```
 
