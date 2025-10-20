@@ -24,7 +24,7 @@ from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 
-
+from django.http import JsonResponse
 
 
 schema_view = get_schema_view(
@@ -42,10 +42,12 @@ schema_view = get_schema_view(
 
 
 
-
+def health(request):
+    return JsonResponse({"status": "ok", "message": "Loxa backend running"})
 
 
 urlpatterns = [
+    path("", health),
     path("admin/", admin.site.urls),
     path("api/", include("api.urls")),  # all API routes live here
     path("api/token/", TokenObtainPairView.as_view(), name="token_obtain_pair"),
