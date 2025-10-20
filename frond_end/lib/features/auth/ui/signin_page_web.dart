@@ -63,7 +63,7 @@ class _GoogleSignInButtonWebState extends State<_GoogleSignInButtonWeb> {
     GoogleSignIn().onCurrentUserChanged.listen((GoogleSignInAccount? account) {
       if (account != null) {
         // If sign-in is successful, process it.
-        widget.authController.signInWithGoogleFromWeb(account);
+        widget.authController.signInWithGoogleFromWeb(account as String);
       }
     });
   }

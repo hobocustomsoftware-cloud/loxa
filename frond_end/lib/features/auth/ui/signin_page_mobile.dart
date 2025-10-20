@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show debugPrint; // for console logs
 import 'package:provider/provider.dart';
 import '../controllers/auth_controller.dart';
 
@@ -10,7 +11,26 @@ class GoogleSignInScreen extends StatelessWidget {
     final authController = Provider.of<AuthController>(context);
 
     Future<void> handleSignIn() async {
-      await authController.signInWithGoogle();
+      debugPrint('[GoogleSignInScreen] Sign-in button pressed');
+      print('GSI: starting Google sign-in (mobile)');
+      debugPrint('GSI: initial busy=${authController.busy} isAuthenticated=${authController.isAuthenticated}');
+      try {
+        final result = await authController.signInWithGoogle();
+        debugPrint('GSI: signInWithGoogle() returned: $result');
+        print('GSI: signInWithGoogle result: $result');
+        debugPrint('GSI: after sign-in busy=${authController.busy} isAuthenticated=${authController.isAuthenticated}');
+        if (authController.me != null) {
+          debugPrint('GSI: user email=${authController.me!.email}');
+        }
+        if (authController.error != null) {
+          debugPrint('GSI: auth error=${authController.error}');
+          print('GSI: auth error=${authController.error}');
+        }
+      } catch (e, st) {
+        debugPrint('GSI: exception during Google sign-in: $e');
+        debugPrint('GSI: stacktrace: $st');
+        print('GSI: exception: $e');
+      }
     }
 
     if (authController.isAuthenticated) {

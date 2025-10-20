@@ -92,16 +92,19 @@ class AuthRepository {
   // User profile အပြည့်အစုံကို /me/ endpoint မှတစ်ဆင့်သာ ရယူရန် ပြင်ဆင်ထားသည်။
   Future<Me> fetchMe() async {
     try {
-      // User profile အချက်အလက်အပြည့်အစုံကို /me/ endpoint ကသာ ပြန်ပေးသောကြောင့် ၎င်းကိုသာ အသုံးပြုသည်။
+      debugPrint('[AuthRepository] GET /me/ start');
       final r = await _dio.get('/me/');
+      debugPrint('[AuthRepository] GET /me/ status=' + (r.statusCode?.toString() ?? 'null'));
       if (r.statusCode == 200 && r.data is Map) {
         _me = Me.fromJson((r.data as Map).cast<String, dynamic>());
         final sp = await SharedPreferences.getInstance();
         await sp.setString(_kMe, jsonEncode(r.data));
+        debugPrint('[AuthRepository] /me/ parsed ok, me.email=' + (_me?.email ?? 'null'));
         return _me!;
       }
       throw Exception('Failed to load user profile. Status: ${r.statusCode}');
     } catch (e) {
+      debugPrint('[AuthRepository] Error fetching /me/: ' + e.toString());
       throw Exception('Failed to load user profile (/me/): $e');
     }
   }
@@ -134,20 +137,16 @@ class AuthRepository {
   // -----------------------------------------------------
   Future<Me?> signInWithGoogleFromMobile() async {
     try {
-      // 1. Trigger the Google Sign-In flow.
-      // `signInSilently` can cause issues with modern browser policies on web.
-      // A direct `signIn` is more reliable for the initial login.
+      debugPrint('[AuthRepository] Mobile Google sign-in start');
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-
+      debugPrint('[AuthRepository] Mobile Google sign-in user=' + (googleUser?.email ?? 'null'));
       if (googleUser == null) {
-        // User cancelled the sign-in
+        debugPrint('[AuthRepository] Mobile Google sign-in cancelled by user');
         return null;
       }
-
       return await _processGoogleSignIn(googleUser);
     } catch (e) {
-      debugPrint('Google Sign In Error: $e');
-      // ✅ IMPROVEMENT: Sign out from Google to allow the user to try again cleanly.
+      debugPrint('[AuthRepository] Google Sign In Error (mobile): ' + e.toString());
       await _googleSignIn.signOut();
       return null;
     }
@@ -157,30 +156,27 @@ class AuthRepository {
   /// and fetches the user profile. This can be used by both mobile and web flows.
   Future<Me?> _processGoogleSignIn(GoogleSignInAccount googleUser) async {
     try {
-      // 1. Obtain the authentication token from the signed-in user.
+      debugPrint('[AuthRepository] Processing Google account=' + (googleUser.email));
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
 
-      // 🛑 FIX 1: Get the correct token for the platform.
-      // For web, the ID token is in `accessToken`.
-      // For mobile, it's in `idToken`.
       final String? token = kIsWeb
           ? googleAuth.accessToken
           : googleAuth.idToken;
+
+      debugPrint('[AuthRepository] Token resolved. isWeb=' + kIsWeb.toString() + ', hasToken=' + ((token ?? '').isNotEmpty).toString());
 
       if (token == null) {
         throw Exception('Failed to get Google ID Token.');
       }
 
-      debugPrint('Google Sign-In successful. Sending token to backend...');
-
-      // 2. Send the token to your Django backend.
+      debugPrint('[AuthRepository] Sending token to backend...');
       final r = await _dio.post(
-        '${Constants.googleLoginToken}', // This should point to /web-auth/google/login/token/
+        '${Constants.googleLoginToken}',
         data: {'access_token': token},
       );
+      debugPrint('[AuthRepository] Backend response status=' + (r.statusCode?.toString() ?? 'null'));
 
-      // 3. Process the response from your server.
       if (r.statusCode == 200 && r.data is Map) {
         final m = (r.data as Map).cast<String, dynamic>();
         final access = (m['access'] as String?) ?? (m['key'] as String?) ?? '';
@@ -192,18 +188,17 @@ class AuthRepository {
           );
         }
 
+        debugPrint('[AuthRepository] Saving tokens and fetching profile');
         await saveTokens(access, refresh: refresh);
         return await fetchMe();
       }
 
-      // ✅ IMPROVEMENT: Better error logging with response data.
       throw Exception(
         'Google Auth failed at backend. Status: ${r.statusCode}, Message: ${r.statusMessage}, Data: ${r.data}',
       );
     } catch (e) {
-      debugPrint('Google Sign In Error: $e');
+      debugPrint('[AuthRepository] Process Google Sign-In error: ' + e.toString());
       await _googleSignIn.signOut();
-      // Re-throw the exception so the UI layer can handle it.
       throw Exception('Failed to process Google Sign-In: $e');
     }
   }
@@ -211,7 +206,42 @@ class AuthRepository {
   /// This method is now specifically for the web, to be called after
   /// the Google button has returned a user.
   Future<Me?> signInWithGoogleFromWeb(GoogleSignInAccount googleUser) async {
-    // The logic is now centralized in _processGoogleSignIn
+    debugPrint('[AuthRepository] Web flow using GoogleSignInAccount');
     return await _processGoogleSignIn(googleUser);
+  }
+
+  Future<Me?> signInWithGoogleAccessTokenWeb(String accessToken) async {
+    try {
+      debugPrint('[AuthRepository] signInWithGoogleAccessTokenWeb start');
+      if ((accessToken).isEmpty) {
+        throw Exception('Empty access token');
+      }
+  
+      debugPrint('[AuthRepository] Posting access token to backend');
+      final r = await _dio.post(
+        '${Constants.googleLoginToken}',
+        data: {'access_token': accessToken},
+      );
+      debugPrint('[AuthRepository] Backend response status=' + (r.statusCode?.toString() ?? 'null'));
+  
+      if (r.statusCode == 200 && r.data is Map) {
+        final m = (r.data as Map).cast<String, dynamic>();
+        final access = (m['access'] as String?) ?? (m['key'] as String?) ?? '';
+        final refresh = (m['refresh'] as String?);
+        if (access.isEmpty) {
+          throw Exception('Backend did not return access token. Response: ${r.data}');
+        }
+  
+        await saveTokens(access, refresh: refresh);
+        debugPrint('[AuthRepository] Tokens saved. Fetching /me/');
+        return await fetchMe();
+      }
+  
+      throw Exception('Google Auth failed at backend. Status: ${r.statusCode}, Message: ${r.statusMessage}, Data: ${r.data}');
+    } catch (e) {
+      debugPrint('[AuthRepository] signInWithGoogleAccessTokenWeb error: ' + e.toString());
+      try { await _googleSignIn.signOut(); } catch (_) {}
+      throw Exception('Failed to process Google Sign-In (web token): $e');
+    }
   }
 }

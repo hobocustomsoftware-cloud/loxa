@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../data/auth_repository.dart';
 import '../models/me.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class AuthController extends ChangeNotifier {
   AuthController();
@@ -104,69 +105,82 @@ class AuthController extends ChangeNotifier {
   // -----------------------------------------------------
   // Google Sign-In Method (INTEGRATED)
   // -----------------------------------------------------
-  Future<Object?> signInWithGoogle() async {
-    if (_authBusy) return false;
+  Future<bool> signInWithGoogle() async {
+    debugPrint('[AuthController] signInWithGoogle() invoked');
+    if (_authBusy) {
+      debugPrint('[AuthController] Busy, ignoring signInWithGoogle');
+      return false;
+    }
     _authBusy = true;
     error = null;
     notifyListeners();
-
+  
     try {
-      // 1. Google Sign-In ကို AuthRepository မှတဆင့် လုပ်ဆောင်ခြင်း
-      // AuthRepository တွင် Google service မှ Sign-In ပြီး Token ကို Server သို့ပို့ပြီး me ကို fetch ရန် လိုအပ်ပါသည်။
-      final success = await _repo.signInWithGoogleFromMobile().timeout(
-        _loginTimeout,
-      );
-
-      if (success != null) {
-        // 2. Repository မှ update လုပ်ပြီးသား profile ကို ယူခြင်း
+      debugPrint('[AuthController] Calling repo.signInWithGoogleFromMobile()');
+      final meObj = await _repo.signInWithGoogleFromMobile().timeout(_loginTimeout);
+      final ok = meObj != null;
+      debugPrint('[AuthController] repo.signInWithGoogleFromMobile() returned: ' + (ok ? 'success' : 'null'));
+  
+      if (ok) {
         me = _repo.me;
+        debugPrint('[AuthController] Updated me. me.email=' + (me?.email ?? 'null'));
         notifyListeners();
+        return true;
       }
-
-      return success;
-    } on TimeoutException {
-      error =
-          'Google Sign-In timed out. Please check your connection and try again.';
       return false;
-    } catch (e) {
+    } on TimeoutException {
+      error = 'Google Sign-In timed out. Please check your connection and try again.';
+      debugPrint('[AuthController] Timeout in signInWithGoogle');
+      return false;
+    } catch (e, st) {
       error = e.toString();
+      debugPrint('[AuthController] Exception during signInWithGoogle: ' + e.toString());
+      debugPrint(st.toString());
       return false;
     } finally {
       _authBusy = false;
+      debugPrint('[AuthController] authBusy reset to false');
       notifyListeners();
     }
   }
 
-  Future<Object?> signInWithGoogleFromWeb(
-    GoogleSignInAccount googleUser,
-  ) async {
-    if (_authBusy) return false;
+  Future<bool> signInWithGoogleFromWeb(String accessToken) async {
+    debugPrint('[AuthController] signInWithGoogleFromWeb(accessToken=***redacted***) invoked');
+    if (_authBusy) {
+      debugPrint('[AuthController] Busy, ignoring signInWithGoogleFromWeb');
+      return false;
+    }
     _authBusy = true;
     error = null;
     notifyListeners();
-
+  
     try {
-      // 1. Google Sign-In မှ ရလာသော user object ကို AuthRepository သို့ ပို့ခြင်း
-      final success = await _repo
-          .signInWithGoogleFromWeb(googleUser)
+      debugPrint('[AuthController] Calling repo.signInWithGoogleAccessTokenWeb()');
+      final meObj = await _repo
+          .signInWithGoogleAccessTokenWeb(accessToken)
           .timeout(_loginTimeout);
-
-      if (success != null) {
-        // 2. Repository မှ update လုပ်ပြီးသား profile ကို ယူခြင်း
+      final ok = meObj != null;
+      debugPrint('[AuthController] Web Google sign-in returned: ' + (ok ? 'success' : 'null'));
+  
+      if (ok) {
         me = _repo.me;
+        debugPrint('[AuthController] Updated me after web sign-in. me.email=' + (me?.email ?? 'null'));
         notifyListeners();
+        return true;
       }
-
-      return success;
-    } on TimeoutException {
-      error =
-          'Google Sign-In timed out. Please check your connection and try again.';
       return false;
-    } catch (e) {
+    } on TimeoutException {
+      error = 'Google Sign-In timed out. Please check your connection and try again.';
+      debugPrint('[AuthController] Timeout in signInWithGoogleFromWeb');
+      return false;
+    } catch (e, st) {
       error = e.toString();
+      debugPrint('[AuthController] Exception during signInWithGoogleFromWeb: ' + e.toString());
+      debugPrint(st.toString());
       return false;
     } finally {
       _authBusy = false;
+      debugPrint('[AuthController] authBusy reset to false (web)');
       notifyListeners();
     }
   }

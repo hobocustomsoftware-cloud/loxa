@@ -10,7 +10,8 @@ class DioClient {
 
   /// Production server URL ကို အသုံးပြုရန် ပြင်ဆင်ထားသည်။
   static String getBaseUrl() {
-    return 'http://localhost:8000/api/';
+    // return 'http://localhost:8000/api/';
+    return 'https://lms.ai1.com.mm/api/';
   }
 
   final Dio _dio = Dio(
