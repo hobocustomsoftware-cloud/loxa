@@ -5,6 +5,7 @@
 cp .env.example .env
 # update .env with appropriate service credential
 # up and running 
+docker compose down
 docker compose up
 
 cd /home/loxalms/public_html/loxa

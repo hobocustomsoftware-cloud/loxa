@@ -249,7 +249,7 @@ CORS_ALLOW_CREDENTIALS = True
 # --- Production Security Settings ---
 if not DEBUG:
     # Force HTTPS in production
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True

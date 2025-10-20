@@ -35,7 +35,7 @@ Add these settings to your `settings.py`:
 # Production Google OAuth Configuration
 if not DEBUG:
     # Force HTTPS for OAuth
-    SECURE_SSL_REDIRECT = True
+    SECURE_SSL_REDIRECT = False
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     
     # Update allowed hosts for production
