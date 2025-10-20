@@ -20,12 +20,23 @@ SITE_ID = 1 # Required by django-allauth
 
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = False
-SECURE_PROXY_SSL_HEADER = None
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
+# SECURE_PROXY_SSL_HEADER = None
+# SECURE_SSL_REDIRECT = False
+# SESSION_COOKIE_SECURE = False
+# CSRF_COOKIE_SECURE = False
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
+
+# Tell Django to trust the X-Forwarded-Proto header
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Don't force HTTPS inside the container
+SECURE_SSL_REDIRECT = False
+
+# Optional: if you use cookies
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+
 
 # --- Custom User Models ---
 AUTH_USER_MODEL = "accounts.User"
@@ -247,25 +258,26 @@ else:
 CORS_ALLOW_CREDENTIALS = True
 
 # --- Production Security Settings ---
-if not DEBUG:
-    # Force HTTPS in production
-    SECURE_SSL_REDIRECT = False
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_HSTS_SECONDS = 31536000
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+# if not DEBUG:
+#     # Force HTTPS in production
+#     SECURE_SSL_REDIRECT = False
+#     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+#     SECURE_HSTS_SECONDS = 31536000
+#     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+#     SECURE_HSTS_PRELOAD = True
     
-    # Session security
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
+#     # Session security
+#     SESSION_COOKIE_SECURE = True
+#     CSRF_COOKIE_SECURE = True
+#     SECURE_BROWSER_XSS_FILTER = True
+#     SECURE_CONTENT_TYPE_NOSNIFF = True
 
 # Always use HTTPS for OAuth redirects in production
-if not DEBUG:
-    USE_HTTPS = True
-else:
-    USE_HTTPS = False
+# if not DEBUG:
+#     USE_HTTPS = True
+# else:
+#     USE_HTTPS = False
+USE_HTTPS = False
 
 # --- Other Service Configurations (Redis, Celery, Agora, Sentry, etc.) ---
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
