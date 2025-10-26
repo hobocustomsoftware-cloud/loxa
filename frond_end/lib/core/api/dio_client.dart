@@ -11,7 +11,7 @@ class DioClient {
   /// Production server URL ကို အသုံးပြုရန် ပြင်ဆင်ထားသည်။
   static String getBaseUrl() {
     // return 'http://localhost:8000/api/';
-    return 'https://lms.ai1.com.mm/api/';
+    return 'https://lms2.ai1.com.mm/api/';
   }
 
   final Dio _dio = Dio(
@@ -53,6 +53,10 @@ class DioClient {
 
             // ❗ IMPORTANT: baseUrl သုံးနေရင် path ကို leading slash မထားပါ
             // e.g. 'live-sessions/' ✔,  '/live-sessions/' ✖ (baseUrl ရဲ့ '/api' ပြတ်သွားနိုင်)
+            // 🔧 Normalize: strip any leading slash to preserve baseUrl path
+            if (options.path.startsWith('/')) {
+              options.path = options.path.replaceFirst(RegExp(r'^/+'), '');
+            }
           } catch (e, st) {
             debugPrint('⚠️ Dio onRequest inject error: $e\n$st');
           }

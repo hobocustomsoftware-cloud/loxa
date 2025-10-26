@@ -5,7 +5,7 @@ class Constants {
   static const apiBase = String.fromEnvironment(
     'API_BASE',
     // defaultValue: 'http://localhost:8000/api',
-    defaultValue: 'https://lms.ai1.com.mm/api',
+    defaultValue: 'https://lms2.ai1.com.mm/api',
   );
 
   static const courses = '/courses/';
